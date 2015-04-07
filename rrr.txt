@@ -1,0 +1,14 @@
+DONE    rename files using smart ordering
+DONE    rotate and resize pdfs
+DONE    convert word and excel files to pdf
+DONE    convert image files to PDF
+?       output "document unprintable" for formats other than those supported
+?       if possible, format excel files using page setup
+DONE    expand zip files
+DONE    expand outlook files
+DONE    print original outlook message
+DONE    add tab files down to a specified depth
+DONE    add named slipsheet in front of each file
+?       add to CWS with tabs on tab files, blue slipsheet as first sheet of other files
+
+DONE    output errors as a text file
