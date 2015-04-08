@@ -193,71 +193,77 @@ def process_msg(subdir,file):
         return
     os.mkdir(os.path.join(subdir,file)+".dir")
     ole = olefile.OleFileIO(os.path.join(subdir,file))
+    attach_list = get_msg_attach_list(ole)
+    extract_msg_files(attach_list,ole,subdir,file)
+    extract_msg_message(ole,subdir,file)
+    ole.close()
+    os.remove(os.path.join(subdir,file))
+def get_msg_attach_list(ole):
     attach_list = []
     for i in ole.listdir():
         if i[0][:8]=="__attach":
             if attach_list.count(i[0])==0:
                 attach_list.append(i[0])
+    return attach_list
+def extract_msg_files(attach_list,ole,subdir,file):
     for i in attach_list:
-        filename = ""
-        for j in ole.listdir():
-            if j[0]==i:
-                if j[1][:16]=="__substg1.0_3707":
-                    name_stream = ole.openstream("{0}/{1}".format(j[0],j[1]))
-                    filename = name_stream.read()
-        if filename == None:
-            for j in ole.listdir():
-                if j[0]==i:
-                    if j[1][:16]=="__substg1.0_3704":
-                        name_stream = ole.openstream("{0}/{1}".format(j[0],j[1]))
-                        filename = name_stream.read()
-        filename = clean_string(filename)
-        for j in ole.listdir():
-            if j[0]==i:
-                if j[1][:20]=="__substg1.0_37010102":
-                    file_stream = ole.openstream("{0}/{1}".format(j[0],j[1]))
-                    file_data = file_stream.read()
-                    fp = io.open(os.path.join(os.path.join(subdir,file)+".dir",filename),"w+b")
-                    fp.write(file_data)
-                    fp.close()
-    msg_from = ""
-    msg_to = ""
-    msg_cc = ""
-    msg_subject = ""
-    msg_header = ""
+        filename = clean_string(get_msg_attachment_filename(i,ole))
+        write_msg_attachment(index,ole,subdir,file,filename)
+def get_msg_attachment_filename(index,ole):
+    filename = get_msg_attachment_filename_primary(index,ole)
+    if filename == None:
+        filename = get_msg_attachment_filename_fallback(index,ole)
+    return filename
+def get_msg_attachment_filename_primary(index,ole):
     for i in ole.listdir():
-        if i[0][:16]=="__substg1.0_0C1A":
-            from_stream = ole.openstream(i[0])
-            msg_from = from_stream.read()
-            msg_from = clean_string(msg_from)
-        elif i[0][:16]=="__substg1.0_0E04":
-            to_stream = ole.openstream(i[0])
-            msg_to = to_stream.read()
-            msg_to = clean_string(msg_to)
-        elif i[0][:16]=="__substg1.0_0E03":
-            cc_stream = ole.openstream(i[0])
-            msg_cc = cc_stream.read()
-            msg_cc = clean_string(msg_cc)
-        elif i[0][:16]=="__substg1.0_0037":
-            subject_stream = ole.openstream(i[0])
-            msg_subject = subject_stream.read()
-            msg_subject = clean_string(msg_subject)
-        elif i[0][:16]=="__substg1.0_007D":
-            header_stream = ole.openstream(i[0])
-            msg_header = header_stream.read()
-            msg_header = clean_string(msg_header)
+        if i[0]==index:
+            if i[1][:16]=="__substg1.0_3707":
+                name_stream = ole.openstream("{0}/{1}".format(i[0],i[1]))
+                filename = name_stream.read()
+    return filename
+def get_msg_attachment_filename_fallback(index,ole):
+    for i in ole.listdir():
+        if i[0]==index:
+            if i[1][:16]=="__substg1.0_3704":
+                name_stream = ole.openstream("{0}/{1}".format(i[0],i[1]))
+                filename = name_stream.read()
+    return filename
+def write_msg_attachment(index,ole,subdir,file,filename):
+    for i in ole.listdir():
+        if i[0]==index:
+            if i[1][:20]=="__substg1.0_37010102":
+                file_stream = ole.openstream("{0}/{1}".format(j[0],j[1]))
+                file_data = file_stream.read()
+                fp = io.open(os.path.join(os.path.join(subdir,file)+".dir",filename),"w+b")
+                fp.write(file_data)
+                fp.close()
+def extract_msg_message(ole,subdir,file):
+    msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data(ole)    
     fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","000 message.txt"),"w")
     fp.write(unicode("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header)))
     fp.write(unicode("---------------\n\n"))
-    for i in ole.listdir():
-        if i[0][:16]=="__substg1.0_1000":
-            body_stream = ole.openstream(i[0])
-            msg_body = body_stream.read()
-            msg_body = clean_string(msg_body)
-            fp.write(unicode(msg_body))
+    fp.write(unicode(msg_body))
     fp.close()
-    ole.close()
-    os.remove(os.path.join(subdir,file))
+def extract_msg_message_data(ole):
+    for i in ole.listdir():
+        if i[0][:16]=="__substg1.0_0C1A":
+            msg_from = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_0E04":
+            msg_to = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_0E03":
+            msg_cc = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_0037":
+            msg_subject = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_007D":
+            msg_header = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_1000":
+            msg_body = extract_msg_stream_text(i,ole)
+    return (msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body)
+def extract_msg_stream_text(index,ole):
+    stream = ole.openstream(index[0])
+    text = stream.read()
+    text = clean_string(text)
+    return text
 def clean_string(input):
     output = ""
     save_flag = False
