@@ -137,7 +137,7 @@ def adjust_page_dimensions(a,b,c,d,x,y,x_target,y_target):
         b-=(y_target-float(y))/2
         d+=(y_target-float(y))/2
     return (a,b,c,d)
-def update_page_dimensiosn(page,a,b,c,d):
+def update_page_dimensions(page,a,b,c,d):
     page.mediaBox.upperLeft = (a,b)
     page.mediaBox.lowerRight = (c,d)
     page.cropBox.upperLeft = (a,b)
