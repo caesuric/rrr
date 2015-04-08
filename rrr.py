@@ -31,17 +31,34 @@ from reportlab.lib.pagesizes import letter
 
 def main (rootdir,tabdepth):
     logging.basicConfig(filename='rrrlog.txt',level=logging.DEBUG)
-    #unzip
+    console = logging.StreamHandler()
+    console.setLevel(logging.DEBUG)
+    logging.getLogger('').addHandler(console)
+    unzip(rootdir)
+    add_directory_slipsheets(rootdir,tabdepth)
+    convert_to_pdf(rootdir)
+    rename_resize_rotate(rootdir)
+def unzip (rootdir):
     while (zipfound(rootdir)):
         process_zips(rootdir)
+def add_directory_slipsheets (rootdir,tabdepth):
     tabdepth+=rootdir.count(os.path.sep)
     for subdir,dirs,file in os.walk(rootdir):
         if subdir.count(os.path.sep)<=tabdepth:
             shutil.copy("blankpage.pdf",os.path.join(subdir,"000 ----- INSERT TAB HERE.pdf"))
-    #convert all supported files to PDFs
+def rename_resize_rotate(rootdir):
+    n=0
+    for subdir,dirs,files in os.walk(rootdir):
+        files = natsorted(files)
+        for file in files:
+            n+=1
+            logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
+            os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
+            if file[-4:].upper()==".PDF" and file[-29:].upper()!="000 ----- INSERT TAB HERE.PDF":
+                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
+def convert_to_pdf(rootdir):
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
-            print("Converting {0}".format(os.path.join(subdir,file)))
             logging.info("Converting {0}".format(os.path.join(subdir,file)))
             if file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT":
                 process_doc(os.path.join(subdir,file))
@@ -49,84 +66,49 @@ def main (rootdir,tabdepth):
                 process_xls(os.path.join(subdir,file))
             elif file[-4:].upper()==".TIF" or file[-4:].upper()==".JPG" or file[-5:].upper()==".TIFF" or file[-5:].upper()==".JPEG" or file[-4:].upper()==".PNG":
                 process_image(os.path.join(subdir,file))
-    #rename, resize, and rotate
-    n=0
-    for subdir,dirs,files in os.walk(rootdir):
-        files = natsorted(files)
-        for file in files:
-            n+=1
-            print ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
-            logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
-            os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
-            if file[-4:].upper()==".PDF" and file[-29:].upper()!="000 ----- INSERT TAB HERE.PDF":
-                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
 def process_pdf(filename,rootdir):
         pdf = PdfFileReader(filename,strict=False)
         if pdf.isEncrypted:
-            print("ERROR: File encrypted - check PDF")
             logging.warning("ERROR: File encrypted - check PDF")
             shutil.copy(filename,rootdir)
             return
         pdf_dest = PdfFileWriter()
-        numPages = pdf.getNumPages()
-        slipsheet = pdf_dest.addBlankPage(8.5*72,11*72)
-        packet = StringIO.StringIO()
-        can = canvas.Canvas(packet, pagesize=letter)
-        directory_path,base_filename = os.path.split(filename)
-        can.drawString(10,600,base_filename)
-        can.save()
-        packet.seek(0)
-        slipsheet_overlay_pdf=PdfFileReader(packet)
-        slipsheet_overlay_page=slipsheet_overlay_pdf.getPage(0)
-        slipsheet.mergePage(slipsheet_overlay_page)
-        for i in range(numPages):
-            page = pdf.getPage(i)
-            process_pdf_page(page)
-            pdf_dest.addPage(page)
-        try:
-            pdf_dest.write(io.open(filename,mode='w+b'))
-        except:
-            print ("ERROR: Could not write PDF - check PDF")
-            logging.warning ("ERROR: Could not write PDF - check PDF")
-            shutil.copy(filename,rootdir)
+        add_slipsheet(pdf_dest,filename)
+        process_pdf_pages(pdf,pdf_dest)
+        pdf_write(pdf_dest,filename,rootdir)
 def process_pdf_page(page):
-    a,b,c,d = page.mediaBox
-    x = abs(c-a)
-    y = abs(d-b)
-    previous_rotation = page.get('/Rotate')
-    if previous_rotation == 90 or previous_rotation == -90 or previous_rotation == 270 or previous_rotation == -270:
-        temp=x
-        x=y
-        y=temp
+    x,y = get_page_dimensions(page)
     if x>y:
         page.rotateCounterClockwise(90)
-        a,b,c,d = page.mediaBox
-        x = abs(c-a)
-        y = abs(d-b)
-        previous_rotation = page.get('/Rotate')
-        if previous_rotation == 90 or previous_rotation == -90 or previous_rotation == 270 or previous_rotation == -270:
-            temp=x
-            x=y
-            y=temp
+        x,y = get_page_dimensions(page)
+    scale_to_letter(page,scale_factor(x,y))
+def determine_scaling_factors(x,y):
     x_scaling = 1
     y_scaling = 1
-    scale = 1
     if x>(8.5*72):
         x_scaling = float(8.5*72)/float(x)
     if y>(11*72):
         y_scaling = float(11*72)/float(y)
+    return (x_scaling,y_scaling)
+def scale_factor(x,y):
+    scale = 1
+    x_scaling,y_scaling = determine_scaling_factors(x,y)
     if x_scaling != 1 or y_scaling != 1:
         if x_scaling < y_scaling:
             scale = x_scaling
         else:
             scale = y_scaling
-    scale_to_letter(page,scale)
+    return scale
 def scale_to_letter(page,scale):
     try:
         page.scaleBy(scale)
     except:
-        print ("ERROR: Could not scale - check PDF")
         logging.warning("ERROR: Could not scale - check PDF")
+    a,b,c,d,x,y = get_page_dimensions(page)
+    x_target,y_target = get_target_dimensions(page)
+    a,b,c,d = adjust_page_dimensions(a,b,c,d,x,y,x_target,y_target)    
+    update_page_dimensions(page,a,b,c,d)
+def get_page_dimensions(page):
     a,b,c,d = page.mediaBox
     a = float(a)
     b = float(b)
@@ -134,6 +116,8 @@ def scale_to_letter(page,scale):
     d = float(d)
     x = abs(c-a)
     y = abs(d-b)
+    return (a,b,c,d,x,y)
+def get_target_dimensions(page):
     is_rotated = False
     rotation = page.get('/Rotate')
     if rotation == 90 or rotation == -90 or rotation == 270 or rotation == -270:
@@ -144,12 +128,16 @@ def scale_to_letter(page,scale):
     else:
         x_target = (11*72)
         y_target = (8.5*72)
+    return (x_target,y_target)
+def adjust_page_dimensions(a,b,c,d,x,y,x_target,y_target):
     if x<x_target:
         a-=(x_target-float(x))/2
         c+=(x_target-float(x))/2
     if y<y_target:
         b-=(y_target-float(y))/2
         d+=(y_target-float(y))/2
+    return (a,b,c,d)
+def update_page_dimensiosn(page,a,b,c,d):
     page.mediaBox.upperLeft = (a,b)
     page.mediaBox.lowerRight = (c,d)
     page.cropBox.upperLeft = (a,b)
@@ -181,20 +169,24 @@ def process_mime_msg(subdir,file):
     fp.close()
     counter = 1
     for part in msg.walk():
-        print (part.get_filename())
-        if part.get_content_maintype() == 'multipart':
-            continue
-        filename = part.get_filename()
-        if filename==None:
-            ext = mimetypes.guess_extension(part.get_content_type())
-            if not ext:
-                ext = ".bin"
-            filename = "part-{0:03d}{1}".format(counter,ext)
-        counter += 1
-        fp = open(os.path.join(os.path.join(subdir,file)+".dir",filename),'wb')
-        fp.write(part.get_payload(decode=True))
-        fp.close()
+        process_mime_msg_section(part,subdir,file)
     os.remove(os.path.join(subdir,file))
+def process_mime_msg_section(part,subdir,file):
+    if part.get_content_maintype() == 'multipart':
+        continue
+    filename = part.get_filename()
+    if filename==None:
+        filename = generate_mime_msg_section_filename(part)
+    counter += 1
+    fp = open(os.path.join(os.path.join(subdir,file)+".dir",filename),'wb')
+    fp.write(part.get_payload(decode=True))
+    fp.close()
+def generate_mime_msg_section_filename(part):
+    ext = mimetypes.guess_extension(part.get_content_type())
+    if not ext:
+        ext = ".bin"
+    filename = "part-{0:03d}{1}".format(counter,ext)
+    return filename
 def process_msg(subdir,file):
     if olefile.isOleFile(os.path.join(subdir,file))==False:
         process_mime_msg(subdir,file)
@@ -309,6 +301,39 @@ def process_image(filename):
     acrobat.CloseAllDocs()
     acrobat.Exit()
     os.remove(filename)
+def add_slipsheet(pdf_dest,filename):
+    slipsheet = pdf_dest.addBlankPage(8.5*72,11*72)
+    packet = StringIO.StringIO()
+    can = canvas.Canvas(packet, pagesize=letter)
+    directory_path,base_filename = os.path.split(filename)
+    can.drawString(10,600,base_filename)
+    can.save()
+    packet.seek(0)
+    slipsheet_overlay_pdf=PdfFileReader(packet)
+    slipsheet_overlay_page=slipsheet_overlay_pdf.getPage(0)
+    slipsheet.mergePage(slipsheet_overlay_page)
+def process_pdf_pages(pdf,pdf_dest):
+    numPages = pdf.getNumPages()        
+    for i in range(numPages):
+        page = pdf.getPage(i)
+        process_pdf_page(page)
+        pdf_dest.addPage(page)
+def pdf_write(pdf_dest,filename,rootdir):
+    try:
+        pdf_dest.write(io.open(filename,mode='w+b'))
+    except:
+        logging.warning ("ERROR: Could not write PDF - check PDF")
+        shutil.copy(filename,rootdir)
+def get_page_dimensions(page):
+    a,b,c,d = page.mediaBox
+    x = abs(c-a)
+    y = abs(d-b)
+    previous_rotation = page.get('/Rotate')
+    if previous_rotation == 90 or previous_rotation == -90 or previous_rotation == 270 or previous_rotation == -270:
+        temp=x
+        x=y
+        y=temp
+    return (x,y)
     
 if __name__ == "__main__":
     from docopt import docopt
