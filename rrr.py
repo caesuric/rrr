@@ -173,7 +173,7 @@ def process_mime_msg(subdir,file):
     os.remove(os.path.join(subdir,file))
 def process_mime_msg_section(part,subdir,file):
     if part.get_content_maintype() == 'multipart':
-        continue
+        return
     filename = part.get_filename()
     if filename==None:
         filename = generate_mime_msg_section_filename(part)
