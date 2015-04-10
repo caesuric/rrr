@@ -3,6 +3,7 @@ from PyPDF2 import PdfFileReader,PdfFileWriter
 #all tests use test_ as shorthand for tests_that_it_
 class TestMain(unittest.TestCase):
     pass
+    #STUB
 class TestUnzip(unittest.TestCase):
     def setUp(self):
         self.a = "test_process_zips_test_directory"
@@ -72,6 +73,7 @@ class TestRenameResizeRotate(unittest.TestCase):
     pass
 class TestConvertToPdf(unittest.TestCase):
     pass
+    #STUB
 class TestProcessPdf(unittest.TestCase):
     pass
 class TestProcessPdfPage(unittest.TestCase):
@@ -94,7 +96,18 @@ class TestDetermineScalingFactors(unittest.TestCase):
         self.assertEqual(x_scaling,1)
         self.assertEqual(y_scaling,1)
 class TestScaleFactor(unittest.TestCase):
-    pass
+    def test_leaves_letter_alone(self):
+        scaling = rrr.scale_factor(8.5*72,11*72)
+        self.assertEqual(scaling,1)
+    def test_reduces_legal_size_to_letter(self):
+        scaling = rrr.scale_factor(8.5*72,14*72)
+        self.assertEqual(scaling,float(11)/float(14))
+    def test_reduces_11_by_16_to_letter(self):
+        scaling = rrr.scale_factor(11*72,16*72)
+        self.assertEqual(scaling,float(11)/float(16))
+    def test_ignores_dimensions_smaller_than_letter(self):
+        scaling = rrr.scale_factor(5,5)
+        self.assertEqual(scaling,1)
 class TestScaleToLetter(unittest.TestCase):
     pass
 class TestGetPageDimensions(unittest.TestCase):
@@ -264,10 +277,13 @@ class TestCleanString(unittest.TestCase):
     def test_skips_every_second_character_of_input(self):
         self.assertEqual(rrr.clean_string("A B C D"),"ABCD")
 class TestProcessDoc(unittest.TestCase):
+    #STUB
     pass
 class TestProcessXls(unittest.TestCase):
+    #STUB
     pass
 class TestProcessImage(unittest.TestCase):
+    #STUB
     pass
 class TestAddSlipsheet(unittest.TestCase):
     def test_adds_an_additional_page(self):

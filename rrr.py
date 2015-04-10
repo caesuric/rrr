@@ -295,8 +295,8 @@ def process_xls(filename):
     os.remove(filename)
 def process_image(filename):
     #image = PythonMagick.Image()
-    #img.read(filename)
-    #img.write(filename+".pdf")
+    #image.read(filename)
+    #image.write(filename+".pdf")
     #ABOVE CODE IS UNTESTED BUT WILL PROBABLY DO THE TRICK INSTEAD OF THE FOLLOWING IF YOU DON'T HAVE ACROBAT PRO
     acrobat = comtypes.client.CreateObject('AcroExch.App')
     acrobat.Hide()
