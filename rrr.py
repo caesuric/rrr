@@ -39,7 +39,7 @@ def main (rootdir,tabdepth):
     convert_to_pdf(rootdir)
     rename_resize_rotate(rootdir)
 def unzip (rootdir):
-    while (zipfound(rootdir)):
+    while (zip_found(rootdir)):
         process_zips(rootdir)
 def add_directory_slipsheets (rootdir,tabdepth):
     tabdepth+=rootdir.count(os.path.sep)
@@ -142,7 +142,7 @@ def update_page_dimensions(page,a,b,c,d):
     page.mediaBox.lowerRight = (c,d)
     page.cropBox.upperLeft = (a,b)
     page.cropBox.lowerRight = (c,d)
-def zipfound(rootdir):
+def zip_found(rootdir):
     return_value = False
     for subdirs,dirs,files in os.walk(rootdir):
         for file in files:

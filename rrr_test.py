@@ -1,5 +1,5 @@
-import rrr,unittest,os
-from PyPDF2 import PdfFileReader
+import rrr,unittest,os,shutil,zipfile
+from PyPDF2 import PdfFileReader,PdfFileWriter
 #all tests use test_ as shorthand for tests_that_it_
 class TestMain(unittest.TestCase):
     pass
@@ -7,14 +7,14 @@ class TestUnzip(unittest.TestCase):
     pass
 class TestAddDirectorySlipsheets(unittest.TestCase):
     def test_creates_a_slipsheet(self):
-        a = "test_creates_a_slipsheet_test_directory"
+        a = "test_add_directory_slipsheets_test_directory"
         os.mkdir(a)
         rrr.add_directory_slipsheets(a,0)
         self.assertTrue(os.path.isfile(os.path.join(a,"000 ----- INSERT TAB HERE.pdf")))
         os.remove(os.path.join(a,"000 ----- INSERT TAB HERE.pdf"))
         os.rmdir(a)
     def test_creates_a_slipsheet_at_multiple_levels(self):
-        a = "test_creates_a_slipsheet_test_directory"
+        a = "test_add_directory_slipsheets_test_directory"
         os.mkdir(a)
         os.mkdir(os.path.join(a,a))
         os.mkdir(os.path.join(a,a,a))
@@ -78,15 +78,92 @@ class TestGetTargetDimensions(unittest.TestCase):
         self.assertEqual(x_target,11*72)
         self.assertEqual(y_target,8.5*72)
 class TestAdjustPageDimensions(unittest.TestCase):
-    pass
+    def setUp(self):
+        self.x_target = 100
+        self.y_target = 100
+    def test_ignores_adjustments_when_moving_to_a_smaller_size(self):
+        a = 0
+        b = 0
+        c = 200
+        d = 200
+        x = abs(c-a)
+        y = abs(d-b)
+        a,b,c,d = rrr.adjust_page_dimensions(a,b,c,d,x,y,self.x_target,self.y_target)
+        self.assertEqual(a,0)
+        self.assertEqual(b,0)
+        self.assertEqual(c,200)
+        self.assertEqual(d,200)
+    def test_adjusts_page_to_larger_size_evenly(self):
+        a = 0
+        b = 0
+        c = 50
+        d = 50
+        x = abs(c-a)
+        y = abs(d-b)
+        a,b,c,d = rrr.adjust_page_dimensions(a,b,c,d,x,y,self.x_target,self.y_target)
+        self.assertEqual(a,-25)
+        self.assertEqual(b,-25)
+        self.assertEqual(c,75)
+        self.assertEqual(d,75)
 class TestUpdatePageDimensions(unittest.TestCase):
-    pass
+    def setUp(self):
+        pdf = PdfFileReader("blankpage.pdf",strict=False)
+        self.page = pdf.getPage(0)
+        self.a = 42
+        self.b = 43
+        self.c = 80
+        self.d = 81
+        rrr.update_page_dimensions(self.page,self.a,self.b,self.c,self.d)
+    def test_updates_media_box_to_correct_coordinates(self):
+        self.assertEqual(self.page.mediaBox.upperLeft,(42,43))
+        self.assertEqual(self.page.mediaBox.lowerRight,(80,81))
+    def test_updates_crop_box_to_correct_coordinates(self):
+        self.assertEqual(self.page.cropBox.upperLeft,(42,43))
+        self.assertEqual(self.page.cropBox.lowerRight,(80,81))
 class TestZipFound(unittest.TestCase):
-    pass
+    def setUp(self):
+        self.a = "test_zip_found_test_directory"
+        os.mkdir(self.a)
+    def tearDown(self):
+        os.rmdir(self.a)
+    def test_returns_false_if_no_zip_or_msg_files_are_found(self):
+        self.assertFalse(rrr.zipfound(self.a))
+    def test_returns_true_if_a_zip_file_is_found(self):
+        shutil.copy("blankpage.pdf",os.path.join(self.a,"fakezipfile.zip"))
+        self.assertTrue(rrr.zipfound(self.a))
+        os.remove(os.path.join(self.a,"fakezipfile.zip"))
+    def test_returns_true_if_a_msg_file_is_found(self):
+        shutil.copy("blankpage.pdf",os.path.join(self.a,"fakemsgfile.msg"))
+        self.assertTrue(rrr.zipfound(self.a))
+        os.remove(os.path.join(self.a,"fakemsgfile.msg"))
+    def test_returns_true_if_multiple_zip_files_are_found(self):
+        shutil.copy("blankpage.pdf",os.path.join(self.a,"fakezipfile.zip"))
+        shutil.copy("blankpage.pdf",os.path.join(self.a,"fakezipfile_b.zip"))
+        self.assertTrue(rrr.zipfound(self.a))
+        os.remove(os.path.join(self.a,"fakezipfile.zip"))
+        os.remove(os.path.join(self.a,"fakezipfile_b.zip"))
 class TestProcessZips(unittest.TestCase):
     pass
 class TestProcessZip(unittest.TestCase):
-    pass
+    def setUp(self):
+        self.a = "test_process_zip_test_directory"
+        os.mkdir(self.a)
+        with zipfile.ZipFile(os.path.join(self.a,"test_zip.zip"),'w') as zip:
+            zip.write("rrr.py")
+            zip.write("blankpage.pdf")
+        rrr.process_zip(self.a,"test_zip.zip")
+    def tearDown(self):
+        os.remove(os.path.join(self.a,"test_zip.zip.dir","rrr.py"))
+        os.remove(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf"))
+        os.rmdir(os.path.join(self.a,"test_zip.zip.dir"))
+        os.rmdir(self.a)
+    def test_creates_a_directory_to_unzip_files_into(self):
+        self.assertTrue(os.path.isdir(os.path.join(self.a,"test_zip.zip.dir")))
+    def test_extracts_all_files_from_the_zip(self):
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","rrr.py")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf")))
+    def test_deletes_the_zip_file_after_extracting(self):
+        self.assertFalse(os.path.isfile(os.path.join(self.a,"test_zip.zip")))
 class TestProcessMimeMsg(unittest.TestCase):
     pass
 class TestProcessMimeMsgSection(unittest.TestCase):
@@ -114,7 +191,8 @@ class TestExtractMsgMessageData(unittest.TestCase):
 class TestExtractMsgStreamText(unittest.TestCase):
     pass
 class TestCleanString(unittest.TestCase):
-    pass
+    def test_skips_every_second_character_of_input(self):
+        self.assertEqual(rrr.clean_string("A B C D"),"ABCD")
 class TestProcessDoc(unittest.TestCase):
     pass
 class TestProcessXls(unittest.TestCase):
@@ -122,10 +200,33 @@ class TestProcessXls(unittest.TestCase):
 class TestProcessImage(unittest.TestCase):
     pass
 class TestAddSlipsheet(unittest.TestCase):
-    pass
+    def test_adds_an_additional_page(self):
+        pdf = PdfFileReader("blankpage.pdf",strict=False)
+        pdf_dest = PdfFileWriter()
+        rrr.add_slipsheet(pdf_dest,"blankpage.pdf")
+        pdf_dest.addPage(pdf.getPage(0))
+        self.assertEqual(pdf_dest.getNumPages(),2)
 class TestProcessPdfPages(unittest.TestCase):
     pass
 class TestPdfWrite(unittest.TestCase):
-    pass
+    def test_creates_a_pdf(self):
+        pdf = PdfFileReader("blankpage.pdf",strict=False)
+        pdf_dest = PdfFileWriter()
+        pdf_dest.addPage(pdf.getPage(0))
+        a = "test_pdf_write_test_pdf.pdf"
+        rrr.pdf_write(pdf_dest,a,os.getcwd())
+        self.assertTrue(os.path.isfile(a))
+        os.remove(a)
 class TestGetPageDimensions(unittest.TestCase):
-    pass
+    def setUp(self):
+        pdf = PdfFileReader("blankpage.pdf",strict=False)
+        self.page = pdf.getPage(0)
+    def test_gets_the_appropriate_dimensions_for_a_letter_page(self):
+        x,y = rrr.get_page_dimensions(self.page)
+        self.assertEqual(x,8.5*72)
+        self.assertEqual(y,11*72)
+    def test_gets_the_appropriate_dimensions_for_a_sideways_letter_page(self):
+        self.page.rotateCounterClockwise(90)
+        x,y = rrr.get_page_dimensions(self.page)
+        self.assertEqual(x,11*72)
+        self.assertEqual(y,8.5*72)
