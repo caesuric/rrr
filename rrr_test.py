@@ -4,7 +4,47 @@ from PyPDF2 import PdfFileReader,PdfFileWriter
 class TestMain(unittest.TestCase):
     pass
 class TestUnzip(unittest.TestCase):
-    pass
+    def setUp(self):
+        self.a = "test_process_zips_test_directory"
+        os.mkdir(self.a)
+        with zipfile.ZipFile(os.path.join(self.a,"test_zip.zip"),'w') as zip:
+            zip.write("rrr.py")
+            zip.write("blankpage.pdf")
+    def tearDown(self):
+        os.rmdir(self.a)
+    def test_unzips_a_single_zip_file(self):
+        rrr.unzip(self.a)
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","rrr.py")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf")))
+        os.remove(os.path.join(self.a,"test_zip.zip.dir","rrr.py"))
+        os.remove(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf"))
+        os.rmdir(os.path.join(self.a,"test_zip.zip.dir"))
+    def test_unzips_multiple_zip_files(self):
+        shutil.copy(os.path.join(self.a,"test_zip.zip"),os.path.join(self.a,"test_zip2.zip"))
+        rrr.unzip(self.a)
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","rrr.py")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir","rrr.py")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir","blankpage.pdf")))
+        os.remove(os.path.join(self.a,"test_zip2.zip.dir","rrr.py"))
+        os.remove(os.path.join(self.a,"test_zip2.zip.dir","blankpage.pdf"))
+        os.rmdir(os.path.join(self.a,"test_zip2.zip.dir"))
+        os.remove(os.path.join(self.a,"test_zip.zip.dir","rrr.py"))
+        os.remove(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf"))
+        os.rmdir(os.path.join(self.a,"test_zip.zip.dir"))
+    def test_unzips_a_nested_zip_file(self):
+        with zipfile.ZipFile(os.path.join(self.a,"test_zip2.zip"),'w') as zip:
+            zip.write(os.path.join(self.a,"test_zip.zip"))
+        os.remove(os.path.join(self.a,"test_zip.zip"))
+        rrr.unzip(self.a)
+        self.assertFalse(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir","test_zip.zip")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir",self.a,"test_zip.zip.dir","rrr.py")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir",self.a,"test_zip.zip.dir","blankpage.pdf")))
+        os.remove(os.path.join(self.a,"test_zip2.zip.dir",self.a,"test_zip.zip.dir","rrr.py"))
+        os.remove(os.path.join(self.a,"test_zip2.zip.dir",self.a,"test_zip.zip.dir","blankpage.pdf"))
+        os.rmdir(os.path.join(self.a,"test_zip2.zip.dir",self.a,"test_zip.zip.dir"))
+        os.rmdir(os.path.join(self.a,"test_zip2.zip.dir",self.a))
+        os.rmdir(os.path.join(self.a,"test_zip2.zip.dir"))
 class TestAddDirectorySlipsheets(unittest.TestCase):
     def test_creates_a_slipsheet(self):
         a = "test_add_directory_slipsheets_test_directory"
@@ -127,23 +167,53 @@ class TestZipFound(unittest.TestCase):
     def tearDown(self):
         os.rmdir(self.a)
     def test_returns_false_if_no_zip_or_msg_files_are_found(self):
-        self.assertFalse(rrr.zipfound(self.a))
+        self.assertFalse(rrr.zip_found(self.a))
     def test_returns_true_if_a_zip_file_is_found(self):
         shutil.copy("blankpage.pdf",os.path.join(self.a,"fakezipfile.zip"))
-        self.assertTrue(rrr.zipfound(self.a))
+        self.assertTrue(rrr.zip_found(self.a))
         os.remove(os.path.join(self.a,"fakezipfile.zip"))
     def test_returns_true_if_a_msg_file_is_found(self):
         shutil.copy("blankpage.pdf",os.path.join(self.a,"fakemsgfile.msg"))
-        self.assertTrue(rrr.zipfound(self.a))
+        self.assertTrue(rrr.zip_found(self.a))
         os.remove(os.path.join(self.a,"fakemsgfile.msg"))
     def test_returns_true_if_multiple_zip_files_are_found(self):
         shutil.copy("blankpage.pdf",os.path.join(self.a,"fakezipfile.zip"))
         shutil.copy("blankpage.pdf",os.path.join(self.a,"fakezipfile_b.zip"))
-        self.assertTrue(rrr.zipfound(self.a))
+        self.assertTrue(rrr.zip_found(self.a))
         os.remove(os.path.join(self.a,"fakezipfile.zip"))
         os.remove(os.path.join(self.a,"fakezipfile_b.zip"))
 class TestProcessZips(unittest.TestCase):
-    pass
+    def setUp(self):
+        self.a = "test_process_zips_test_directory"
+        os.mkdir(self.a)
+        with zipfile.ZipFile(os.path.join(self.a,"test_zip.zip"),'w') as zip:
+            zip.write("rrr.py")
+            zip.write("blankpage.pdf")
+    def tearDown(self):
+        os.rmdir(self.a)
+    def test_unzips_a_single_zip_file(self):
+        rrr.process_zips(self.a)
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","rrr.py")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf")))
+        os.remove(os.path.join(self.a,"test_zip.zip.dir","rrr.py"))
+        os.remove(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf"))
+        os.rmdir(os.path.join(self.a,"test_zip.zip.dir"))
+    def test_unzips_multiple_zip_files(self):
+        shutil.copy(os.path.join(self.a,"test_zip.zip"),os.path.join(self.a,"test_zip2.zip"))
+        rrr.process_zips(self.a)
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","rrr.py")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir","rrr.py")))
+        self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir","blankpage.pdf")))
+        os.remove(os.path.join(self.a,"test_zip2.zip.dir","rrr.py"))
+        os.remove(os.path.join(self.a,"test_zip2.zip.dir","blankpage.pdf"))
+        os.rmdir(os.path.join(self.a,"test_zip2.zip.dir"))
+        os.remove(os.path.join(self.a,"test_zip.zip.dir","rrr.py"))
+        os.remove(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf"))
+        os.rmdir(os.path.join(self.a,"test_zip.zip.dir"))
+    #def test_unzips_a_msg_file(self):
+    #    pass
+    #    STUB
 class TestProcessZip(unittest.TestCase):
     def setUp(self):
         self.a = "test_process_zip_test_directory"
