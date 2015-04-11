@@ -303,16 +303,16 @@ class TestPdfWrite(unittest.TestCase):
         rrr.pdf_write(pdf_dest,a,os.getcwd())
         self.assertTrue(os.path.isfile(a))
         os.remove(a)
-class TestGetPageDimensions(unittest.TestCase):
+class TestGetRotatedPageDimensions(unittest.TestCase):
     def setUp(self):
         pdf = PdfFileReader("blankpage.pdf",strict=False)
         self.page = pdf.getPage(0)
     def test_gets_the_appropriate_dimensions_for_a_letter_page(self):
-        x,y = rrr.get_page_dimensions(self.page)
+        x,y = rrr.get_rotated_page_dimensions(self.page)
         self.assertEqual(x,8.5*72)
         self.assertEqual(y,11*72)
     def test_gets_the_appropriate_dimensions_for_a_sideways_letter_page(self):
         self.page.rotateCounterClockwise(90)
-        x,y = rrr.get_page_dimensions(self.page)
+        x,y = rrr.get_rotated_page_dimensions(self.page)
         self.assertEqual(x,11*72)
         self.assertEqual(y,8.5*72)

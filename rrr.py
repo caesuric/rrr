@@ -46,7 +46,16 @@ def add_directory_slipsheets (rootdir,tabdepth):
     tabdepth+=rootdir.count(os.path.sep)
     for subdir,dirs,file in os.walk(rootdir):
         if subdir.count(os.path.sep)<=tabdepth:
-            shutil.copy("blankpage.pdf",os.path.join(subdir,"000 ----- INSERT TAB HERE.pdf"))
+            a = os.path.join(subdir,"000 ----- INSERT TAB HERE.pdf")
+            shutil.copy("blankpage.pdf",a)
+            add_directory_slipsheet(a,rootdir)
+def add_directory_slipsheet(path,rootdir):
+    pdf = PdfFileReader(path,strict=False)
+    pdf_dest = PdfFileWriter()
+    head,file = os.path.split(path)
+    head,directory = os.path.split(head)
+    add_slipsheet(pdf_dest,directory)
+    pdf_write(pdf_dest,path,rootdir)
 def rename_resize_rotate(rootdir):
     n=0
     for subdir,dirs,files in os.walk(rootdir):
@@ -308,11 +317,11 @@ def process_image(filename):
     acrobat.CloseAllDocs()
     acrobat.Exit()
     os.remove(filename)
-def add_slipsheet(pdf_dest,filename):
+def add_slipsheet(pdf_dest,text):
     slipsheet = pdf_dest.addBlankPage(8.5*72,11*72)
     packet = StringIO.StringIO()
     can = canvas.Canvas(packet, pagesize=letter)
-    directory_path,base_filename = os.path.split(filename)
+    directory_path,base_filename = os.path.split(text)
     can.drawString(10,600,base_filename)
     can.save()
     packet.seek(0)
