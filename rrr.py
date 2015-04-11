@@ -23,7 +23,7 @@ Options:
     -h --help               Show this screen
 """
 import os,io,zipfile,sys,comtypes.client,email,mimetypes,olefile,shutil,time,StringIO
-import logging
+import logging,Tkinter,tkFileDialog
 from natsort import natsorted
 from PyPDF2 import PdfFileReader,PdfFileWriter
 from reportlab.pdfgen import canvas
@@ -38,6 +38,7 @@ def main (rootdir,tabdepth):
     add_directory_slipsheets(rootdir,tabdepth)
     convert_to_pdf(rootdir)
     rename_resize_rotate(rootdir)
+    logging.info("FINISHED!")
 def unzip (rootdir):
     while (zip_found(rootdir)):
         process_zips(rootdir)
@@ -340,7 +341,84 @@ def get_rotated_page_dimensions(page):
         x=y
         y=temp
     return (x,y)
-    
+def launch_main(sourcedir,destdir,tabdepth):
+    if sourcedir==None or destdir==None or tabdepth==None:
+        print("One or more missing arguments. Exiting.")
+        sys.exit()
+    sourcedir = os.path.abspath(sourcedir)
+    destdir = os.path.abspath(destdir)
+    os.rmdir(destdir)
+    shutil.copytree(sourcedir,destdir)
+    main(destdir,tabdepth)
+def launch_gui():
+    root = Tkinter.Tk()
+    root.title("RRR")
+    app = Application(master=root)
+    app.mainloop()
+    root.destroy()
+class Application(Tkinter.Frame):
+    def __init__(self, master = None):
+        Tkinter.Frame.__init__(self,master)
+        self.pack()
+        self.source_directory = ""
+        self.dest_directory = ""
+        self.create_widgets()
+    def create_widgets(self):
+        self.create_exit()
+        self.create_start()
+        self.create_choose_source()
+        self.create_source_text()
+        self.create_choose_dest()
+        self.create_dest_text()
+        self.create_tab_depth_text()
+        self.create_tab_depth_picker()
+    def create_exit(self):
+        self.exit = Tkinter.Button(self)
+        self.exit["text"] = "Exit"
+        self.exit["command"] = self.quit
+        self.exit.grid(row=3,column=1)
+    def create_start(self):
+        self.start_button = Tkinter.Button(self)
+        self.start_button["text"] = "Start"
+        self.start_button["command"] = self.start
+        self.start_button.grid(row=3,column=0)
+    def create_choose_source(self):
+        self.choose_source = Tkinter.Button(self)
+        self.choose_source["text"] = "Source Directory:"
+        self.choose_source["command"] = self.source_directory_select
+        self.choose_source.grid(row=0,column=0)
+    def create_choose_dest(self):
+        self.choose_dest = Tkinter.Button(self)
+        self.choose_dest["text"] = "Destination Directory:"
+        self.choose_dest["command"] = self.dest_directory_select
+        self.choose_dest.grid(row=1,column=0)
+    def create_source_text(self):
+        self.chosen_source = Tkinter.Label(self)
+        self.chosen_source["text"] = self.source_directory
+        self.chosen_source.grid(row=0,column=1)
+    def create_dest_text(self):
+        self.chosen_dest = Tkinter.Label(self)
+        self.chosen_dest["text"] = self.dest_directory
+        self.chosen_dest.grid(row=1,column=1)
+    def create_tab_depth_text(self):
+        self.tab_depth_text = Tkinter.Label(self)
+        self.tab_depth_text["text"] = "Tab Depth:"
+        self.tab_depth_text.grid(row=2,column=0)
+    def create_tab_depth_picker(self):
+        self.tab_depth_picker = Tkinter.Spinbox(self,from_=0,to=10000)
+        self.tab_depth_picker.grid(row=2,column=1)
+    def source_directory_select(self):
+        self.source_directory = tkFileDialog.askdirectory(initialdir = os.getcwd(), title = "Choose Source Directory", mustexist=True)
+        self.chosen_source["text"] = self.source_directory
+    def dest_directory_select(self):
+        self.dest_directory = tkFileDialog.askdirectory(initialdir = os.getcwd(), title = "Choose Destination Directory", mustexist=True)
+        self.chosen_dest["text"] = self.dest_directory
+    def start(self):
+        if self.source_directory!=None and self.dest_directory!=None and self.tab_depth_picker.get()!=None:
+            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()))
+        else:
+            tkMessageBox.showerror("Error","Missing fields - cannot launch.")
+
 if __name__ == "__main__":
     from docopt import docopt
     arguments = docopt(__doc__, version='RRR 0.1')
@@ -355,16 +433,13 @@ if __name__ == "__main__":
     if destdir != None and os.listdir(destdir) != []:
         print("Destination directory must be empty. Exiting.")
         sys.exit()
-    if sourcedir==destdir:
-        print("Source and destination directories are the same. Exiting.")
     tabdepth = arguments["<tabdepth>"]
     if tabdepth !=None:
         tabdepth = int(tabdepth)
     if sourcedir==None or destdir==None or tabdepth==None:
-        print("One or more missing arguments. Exiting.")
+        launch_gui()
         sys.exit()
-    sourcedir = os.path.abspath(sourcedir)
-    destdir = os.path.abspath(destdir)
-    os.rmdir(destdir)
-    shutil.copytree(sourcedir,destdir)
-    main(destdir,tabdepth)
+    if sourcedir==destdir:
+        print("Source and destination directories are the same. Exiting.")
+        sys.exit()
+    launch_main(sourcedir,destdir,tabdepth)
