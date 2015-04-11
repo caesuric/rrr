@@ -16,7 +16,7 @@ Excel files.
 for an (untested) ImageMagick implementation.
 
 Usage:
-    rrr [<rootdir> <tabdepth>]
+    rrr [<sourcedir> <destdir> <tabdepth>]
     rrr (-h | --help)
 
 Options:
@@ -30,7 +30,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 
 def main (rootdir,tabdepth):
-    logging.basicConfig(filename='rrrlog.txt',level=logging.DEBUG)
+    logging.basicConfig(filename='rrrlog.txt',level=logging.INFO)
     console = logging.StreamHandler()
     console.setLevel(logging.DEBUG)
     logging.getLogger('').addHandler(console)
@@ -77,7 +77,7 @@ def process_pdf(filename,rootdir):
         process_pdf_pages(pdf,pdf_dest)
         pdf_write(pdf_dest,filename,rootdir)
 def process_pdf_page(page):
-    x,y = get_page_dimensions(page)
+    x,y = get_rotated_page_dimensions(page)
     if x>y:
         page.rotateCounterClockwise(90)
         x,y = get_page_dimensions(page)
@@ -330,7 +330,7 @@ def pdf_write(pdf_dest,filename,rootdir):
     except:
         logging.warning ("ERROR: Could not write PDF - check PDF")
         shutil.copy(filename,rootdir)
-def get_page_dimensions(page):
+def get_rotated_page_dimensions(page):
     a,b,c,d = page.mediaBox
     x = abs(c-a)
     y = abs(d-b)
@@ -344,8 +344,27 @@ def get_page_dimensions(page):
 if __name__ == "__main__":
     from docopt import docopt
     arguments = docopt(__doc__, version='RRR 0.1')
-    rootdir = arguments["<rootdir>"]
-    if rootdir == "C:\\" or rootdir == "C:": #this would be bad
+    sourcedir = arguments["<sourcedir>"]
+    if sourcedir == "C:\\" or sourcedir == "C:" or sourcedir=="C:/": #this would be bad
+        print("Will not run on root directory. Exiting.")
         sys.exit()
-    tabdepth = int(arguments["<tabdepth>"])
-    main(rootdir,tabdepth)
+    destdir = arguments["<destdir>"]
+    if destdir == "C:\\" or destdir == "C:" or destdir=="C:/": #this would be bad
+        print("Will not run on root directory. Exiting.")
+        sys.exit()
+    if destdir != None and os.listdir(destdir) != []:
+        print("Destination directory must be empty. Exiting.")
+        sys.exit()
+    if sourcedir==destdir:
+        print("Source and destination directories are the same. Exiting.")
+    tabdepth = arguments["<tabdepth>"]
+    if tabdepth !=None:
+        tabdepth = int(tabdepth)
+    if sourcedir==None or destdir==None or tabdepth==None:
+        print("One or more missing arguments. Exiting.")
+        sys.exit()
+    sourcedir = os.path.abspath(sourcedir)
+    destdir = os.path.abspath(destdir)
+    os.rmdir(destdir)
+    shutil.copytree(sourcedir,destdir)
+    main(destdir,tabdepth)
