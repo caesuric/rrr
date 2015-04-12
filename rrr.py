@@ -23,7 +23,7 @@ Options:
     -h --help               Show this screen
 """
 import os,io,zipfile,sys,comtypes.client,email,mimetypes,olefile,shutil,time,StringIO
-import logging,Tkinter,tkFileDialog
+import logging,Tkinter,tkFileDialog,tkMessageBox
 from natsort import natsorted
 from PyPDF2 import PdfFileReader,PdfFileWriter
 from reportlab.pdfgen import canvas
@@ -322,7 +322,7 @@ def add_slipsheet(pdf_dest,text):
     packet = StringIO.StringIO()
     can = canvas.Canvas(packet, pagesize=letter)
     directory_path,base_filename = os.path.split(text)
-    can.drawString(10,600,base_filename)
+    can.drawCentredString(8.5*72/2,600,base_filename)
     can.save()
     packet.seek(0)
     slipsheet_overlay_pdf=PdfFileReader(packet)
@@ -423,10 +423,16 @@ class Application(Tkinter.Frame):
         self.dest_directory = tkFileDialog.askdirectory(initialdir = os.getcwd(), title = "Choose Destination Directory", mustexist=True)
         self.chosen_dest["text"] = self.dest_directory
     def start(self):
-        if self.source_directory!=None and self.dest_directory!=None and self.tab_depth_picker.get()!=None:
-            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()))
-        else:
+        if self.source_directory==None or self.dest_directory==None or self.tab_depth_picker.get()==None or self.source_directory=="" or self.dest_directory=="" or self.tab_depth_picker.get()=="":
             tkMessageBox.showerror("Error","Missing fields - cannot launch.")
+        elif self.source_directory=="C:\\" or self.source_directory=="C:/" or self.source_directory=="C:" or self.dest_directory=="C:\\" or self.dest_directory=="C:/" or self.dest_directory=="C:":
+            tkMessageBox.showerror("Error","Will not launch using the root directory.")
+        elif os.listdir(self.dest_directory) != []:
+            tkMessageBox.showerror("Error","Destination directory must be empty.")
+        elif self.source_directory==self.dest_directory:
+            tkMessageBox.showerror("Error","Source and destination directories cannot be the same.")
+        else:
+            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()))
 
 if __name__ == "__main__":
     from docopt import docopt
