@@ -23,20 +23,20 @@ Options:
     -h --help               Show this screen
 """
 import os,io,zipfile,sys,comtypes.client,email,mimetypes,olefile,shutil,time,StringIO
-import logging,Tkinter,tkFileDialog,tkMessageBox
+import logging,Tkinter,tkFileDialog,tkMessageBox,copy
 from natsort import natsorted
 from PyPDF2 import PdfFileReader,PdfFileWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 
-def main (rootdir,tabdepth):
+def main (rootdir,tabdepth,page_setup_settings):
     logging.basicConfig(filename='rrrlog.txt',level=logging.INFO)
     console = logging.StreamHandler()
     console.setLevel(logging.DEBUG)
     logging.getLogger('').addHandler(console)
     unzip(rootdir)
     add_directory_slipsheets(rootdir,tabdepth)
-    convert_to_pdf(rootdir)
+    convert_to_pdf(rootdir,page_setup_settings)
     rename_resize_rotate(rootdir)
     logging.info("FINISHED!")
 def unzip (rootdir):
@@ -66,14 +66,14 @@ def rename_resize_rotate(rootdir):
             os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
             if file[-4:].upper()==".PDF" and file[-29:].upper()!="000 ----- INSERT TAB HERE.PDF":
                 process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
-def convert_to_pdf(rootdir):
+def convert_to_pdf(rootdir,page_setup_settings):
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
             logging.info("Converting {0}".format(os.path.join(subdir,file)))
             if file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT":
                 process_doc(os.path.join(subdir,file))
             elif file[-4:].upper()==".XLS" or file[-5:].upper()==".XLSX":
-                process_xls(os.path.join(subdir,file))
+                process_xls(os.path.join(subdir,file),page_setup_settings)
             elif file[-4:].upper()==".TIF" or file[-4:].upper()==".JPG" or file[-5:].upper()==".TIFF" or file[-5:].upper()==".JPEG" or file[-4:].upper()==".PNG":
                 process_image(os.path.join(subdir,file))
 def process_pdf(filename,rootdir):
@@ -90,7 +90,7 @@ def process_pdf_page(page):
     x,y = get_rotated_page_dimensions(page)
     if x>y:
         page.rotateCounterClockwise(90)
-        x,y = get_page_dimensions(page)
+        x,y = get_rotated_page_dimensions(page)
     scale_to_letter(page,scale_factor(x,y))
 def determine_scaling_factors(x,y):
     x_scaling = 1
@@ -293,14 +293,16 @@ def process_doc(filename):
     doc.Close()
     word.Quit()
     os.remove(filename)
-def process_xls(filename):
+def process_xls(filename,page_setup_settings):
     excel = comtypes.client.CreateObject('Excel.Application')
     excel.Visible = False
     xls = excel.Workbooks.Open(filename)
     for i in xls.Sheets:
         i.Select(False)
+        if page_setup_settings!=None:
+            set_worksheet_page_setup_settings(page_setup_settings,i.PageSetup)
     xls.SaveAs(filename+".pdf",FileFormat=57)
-    xls.Close()
+    xls.Close(False)
     excel.Quit()
     os.remove(filename)
 def process_image(filename):
@@ -350,7 +352,7 @@ def get_rotated_page_dimensions(page):
         x=y
         y=temp
     return (x,y)
-def launch_main(sourcedir,destdir,tabdepth):
+def launch_main(sourcedir,destdir,tabdepth,page_setup_settings):
     if sourcedir==None or destdir==None or tabdepth==None:
         print("One or more missing arguments. Exiting.")
         sys.exit()
@@ -358,7 +360,7 @@ def launch_main(sourcedir,destdir,tabdepth):
     destdir = os.path.abspath(destdir)
     os.rmdir(destdir)
     shutil.copytree(sourcedir,destdir)
-    main(destdir,tabdepth)
+    main(destdir,tabdepth,page_setup_settings)
 def launch_gui():
     root = Tkinter.Tk()
     root.title("RRR")
@@ -371,6 +373,7 @@ class Application(Tkinter.Frame):
         self.pack()
         self.source_directory = ""
         self.dest_directory = ""
+        self.page_setup_settings = None
         self.create_widgets()
     def create_widgets(self):
         self.create_exit()
@@ -381,16 +384,22 @@ class Application(Tkinter.Frame):
         self.create_dest_text()
         self.create_tab_depth_text()
         self.create_tab_depth_picker()
+        self.create_page_setup_button()
+    def create_page_setup_button(self):
+        self.page_setup = Tkinter.Button(self)
+        self.page_setup["text"] = "Excel Page Setup"
+        self.page_setup["command"] = self.excel_page_setup
+        self.page_setup.grid(row=3,column=0)
     def create_exit(self):
         self.exit = Tkinter.Button(self)
         self.exit["text"] = "Exit"
         self.exit["command"] = self.quit
-        self.exit.grid(row=3,column=1)
+        self.exit.grid(row=4,column=1)
     def create_start(self):
         self.start_button = Tkinter.Button(self)
         self.start_button["text"] = "Start"
         self.start_button["command"] = self.start
-        self.start_button.grid(row=3,column=0)
+        self.start_button.grid(row=4,column=0)
     def create_choose_source(self):
         self.choose_source = Tkinter.Button(self)
         self.choose_source["text"] = "Source Directory:"
@@ -432,8 +441,53 @@ class Application(Tkinter.Frame):
         elif self.source_directory==self.dest_directory:
             tkMessageBox.showerror("Error","Source and destination directories cannot be the same.")
         else:
-            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()))
-
+            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings)
+    def excel_page_setup(self):
+        excel = comtypes.client.CreateObject('Excel.Application')
+        excel.Visible = False
+        xls = excel.Workbooks.Add()
+        for i in xls.Sheets:
+            i.Select(False)
+        excel.CommandBars("File").Controls("Page Set&up...").Execute()
+        self.page_setup_settings = xls.Sheets(1).PageSetup
+        # xls.Close(False)
+        # excel.Quit()
+def set_worksheet_page_setup_settings(source,dest):
+    dest.AlignMarginsHeaderFooter = source.AlignMarginsHeaderFooter
+    dest.BlackAndWhite = source.BlackAndWhite
+    dest.BottomMargin = source.BottomMargin
+    dest.CenterFooter = source.CenterFooter
+    dest.CenterHeader = source.CenterHeader
+    dest.CenterHorizontally = source.CenterHorizontally
+    dest.CenterVertically = source.CenterVertically
+    dest.DifferentFirstPageHeaderFooter = source.DifferentFirstPageHeaderFooter
+    dest.Draft = source.Draft
+    dest.FirstPageNumber = source.FirstPageNumber
+    dest.FitToPagesTall = source.FitToPagesTall
+    dest.FooterMargin = source.FooterMargin
+    dest.HeaderMargin = source.HeaderMargin
+    dest.LeftFooter = source.LeftFooter
+    dest.LeftHeader = source.LeftHeader
+    dest.LeftMargin = source.LeftMargin
+    dest.OddAndEvenPagesHeaderFooter = source.OddAndEvenPagesHeaderFooter
+    dest.Order = source.Order
+    dest.Orientation = source.Orientation
+    dest.PaperSize = source.PaperSize
+    dest.PrintArea = source.PrintArea
+    dest.PrintComments = source.PrintComments
+    dest.PrintErrors = source.PrintErrors
+    dest.PrintGridlines = source.PrintGridlines
+    dest.PrintHeadings = source.PrintHeadings
+    dest.PrintNotes = source.PrintNotes
+    dest.PrintTitleColumns = source.PrintTitleColumns
+    dest.PrintTitleRows = source.PrintTitleRows
+    dest.RightFooter = source.RightFooter
+    dest.RightHeader = source.RightHeader
+    dest.RightMargin = source.RightMargin
+    dest.ScaleWithDocHeaderFooter = source.ScaleWithDocHeaderFooter
+    dest.TopMargin = source.TopMargin
+    dest.Zoom = source.Zoom
+    
 if __name__ == "__main__":
     from docopt import docopt
     arguments = docopt(__doc__, version='RRR 0.1')
@@ -457,4 +511,4 @@ if __name__ == "__main__":
     if sourcedir==destdir:
         print("Source and destination directories are the same. Exiting.")
         sys.exit()
-    launch_main(sourcedir,destdir,tabdepth)
+    launch_main(sourcedir,destdir,tabdepth,None)
