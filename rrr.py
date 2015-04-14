@@ -46,9 +46,10 @@ def add_directory_slipsheets (rootdir,tabdepth):
     tabdepth+=rootdir.count(os.path.sep)
     for subdir,dirs,file in os.walk(rootdir):
         if subdir.count(os.path.sep)<=tabdepth:
-            a = os.path.join(subdir,"000 ----- INSERT TAB HERE.pdf")
+            trash,temp = os.path.split(subdir)
+            a = os.path.join(subdir,"000 ----- "+temp+".pdf")
             shutil.copy("blankpage.pdf",a)
-            add_directory_slipsheet(a,rootdir)
+            #add_directory_slipsheet(a,rootdir)
 def add_directory_slipsheet(path,rootdir):
     pdf = PdfFileReader(path,strict=False)
     pdf_dest = PdfFileWriter()
@@ -64,7 +65,7 @@ def rename_resize_rotate(rootdir):
             n+=1
             logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
             os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
-            if file[-4:].upper()==".PDF" and file[-29:].upper()!="000 ----- INSERT TAB HERE.PDF":
+            if file[-4:].upper()==".PDF":
                 process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
 def convert_to_pdf(rootdir,page_setup_settings):
     for subdir,dirs,files in os.walk(rootdir):
@@ -83,7 +84,7 @@ def process_pdf(filename,rootdir):
             shutil.copy(filename,rootdir)
             return
         pdf_dest = PdfFileWriter()
-        add_slipsheet(pdf_dest,filename)
+        #add_slipsheet(pdf_dest,filename)
         process_pdf_pages(pdf,pdf_dest)
         pdf_write(pdf_dest,filename,rootdir)
 def process_pdf_page(page):
