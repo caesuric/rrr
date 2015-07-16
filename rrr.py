@@ -3,15 +3,14 @@
 Renames a series of files in a directory, resizing to letter size and
 rotating any PDFs found within to portrait orientation.
 * Expands all zip files and email attachments found within target directories.
-* Converts all MS Word, MS Excel, TIF, JPG, PNG, and TXT files to PDFs before
-RRRing.
+* Converts all MS Word, MS Excel, MS PowerPoint, TIF, JPG, PNG, and TXT files
+to PDFs before RRRing.
 * Adds tab placeholders down to a specified directory depth for ease of layout
 during later printing.
 * Copies files that are unmodifiable to the root directory for case-by-case
 processing by end user.
 
-* Requires MS Word or MS Excel 2010 or newer installed to convert Word and
-Excel files.
+* Requires MS Office 2010 or newer installed to convert Office files.
 * Requires Adobe Acrobat Pro to convert images *OR* see comments in process_image
 for an (untested) ImageMagick implementation.
 
@@ -23,13 +22,15 @@ Options:
     -h --help               Show this screen
 """
 import os,io,zipfile,sys,comtypes.client,email,mimetypes,olefile,shutil,time,StringIO
-import logging,Tkinter,tkFileDialog,tkMessageBox,copy
+import logging,Tkinter,tkFileDialog,tkMessageBox,copy,sys
 from natsort import natsorted
 from PyPDF2 import PdfFileReader,PdfFileWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 
 def main (rootdir,tabdepth,page_setup_settings):
+    reload(sys)
+    sys.setdefaultencoding('utf8')
     logging.basicConfig(filename='rrrlog.txt',level=logging.INFO)
     console = logging.StreamHandler()
     console.setLevel(logging.DEBUG)
@@ -47,9 +48,9 @@ def add_directory_slipsheets (rootdir,tabdepth):
     for subdir,dirs,file in os.walk(rootdir):
         if subdir.count(os.path.sep)<=tabdepth:
             trash,temp = os.path.split(subdir)
-            a = os.path.join(subdir,"000 ----- "+temp+".pdf")
+            a = os.path.join(subdir,"000 TAB ----- "+temp+".pdf")
             shutil.copy("blankpage.pdf",a)
-            #add_directory_slipsheet(a,rootdir)
+            add_directory_slipsheet(a,rootdir)
 def add_directory_slipsheet(path,rootdir):
     pdf = PdfFileReader(path,strict=False)
     pdf_dest = PdfFileWriter()
@@ -70,13 +71,18 @@ def rename_resize_rotate(rootdir):
 def convert_to_pdf(rootdir,page_setup_settings):
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
-            logging.info("Converting {0}".format(os.path.join(subdir,file)))
-            if file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT":
-                process_doc(os.path.join(subdir,file))
+            try:
+                logging.info("Converting {0}".format(os.path.join(subdir,file)))
+            except:
+                logging.info("Converting <NAME CANNOT BE DISPLAYED.")
+            if file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT" or file[-4:].upper()==".RTF":
+                process_doc(rootdir,os.path.join(subdir,file))
             elif file[-4:].upper()==".XLS" or file[-5:].upper()==".XLSX":
-                process_xls(os.path.join(subdir,file),page_setup_settings)
+                process_xls(rootdir,os.path.join(subdir,file),page_setup_settings)
             elif file[-4:].upper()==".TIF" or file[-4:].upper()==".JPG" or file[-5:].upper()==".TIFF" or file[-5:].upper()==".JPEG" or file[-4:].upper()==".PNG":
                 process_image(os.path.join(subdir,file))
+            elif file[-4:].upper()==".PPT" or file[-5:].upper()==".PPTX":
+                process_ppt(os.path.join(subdir,file))
 def process_pdf(filename,rootdir):
         pdf = PdfFileReader(filename,strict=False)
         if pdf.isEncrypted:
@@ -84,7 +90,7 @@ def process_pdf(filename,rootdir):
             shutil.copy(filename,rootdir)
             return
         pdf_dest = PdfFileWriter()
-        #add_slipsheet(pdf_dest,filename)
+        add_slipsheet(pdf_dest,filename)
         process_pdf_pages(pdf,pdf_dest)
         pdf_write(pdf_dest,filename,rootdir)
 def process_pdf_page(page):
@@ -219,13 +225,16 @@ def get_msg_attach_list(ole):
 def extract_msg_files(attach_list,ole,subdir,file):
     for i in attach_list:
         filename = clean_string(get_msg_attachment_filename(i,ole))
-        write_msg_attachment(index,ole,subdir,file,filename)
+        write_msg_attachment(i,ole,subdir,file,filename)
 def get_msg_attachment_filename(index,ole):
     filename = get_msg_attachment_filename_primary(index,ole)
     if filename == None:
         filename = get_msg_attachment_filename_fallback(index,ole)
+    if filename == None:
+        filename = "ATTACHMENT 1"
     return filename
 def get_msg_attachment_filename_primary(index,ole):
+    filename = None
     for i in ole.listdir():
         if i[0]==index:
             if i[1][:16]=="__substg1.0_3707":
@@ -233,6 +242,7 @@ def get_msg_attachment_filename_primary(index,ole):
                 filename = name_stream.read()
     return filename
 def get_msg_attachment_filename_fallback(index,ole):
+    filename = None
     for i in ole.listdir():
         if i[0]==index:
             if i[1][:16]=="__substg1.0_3704":
@@ -243,19 +253,34 @@ def write_msg_attachment(index,ole,subdir,file,filename):
     for i in ole.listdir():
         if i[0]==index:
             if i[1][:20]=="__substg1.0_37010102":
-                file_stream = ole.openstream("{0}/{1}".format(j[0],j[1]))
+                file_stream = ole.openstream("{0}/{1}".format(i[0],i[1]))
                 file_data = file_stream.read()
-                fp = io.open(os.path.join(os.path.join(subdir,file)+".dir",filename),"w+b")
-                fp.write(file_data)
-                fp.close()
+                try:
+                    fp = io.open(os.path.join(os.path.join(subdir,file)+".dir",filename),"w+b")
+                    fp.write(file_data)
+                    fp.close()
+                except:
+                    pass
 def extract_msg_message(ole,subdir,file):
     msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data(ole)    
-    fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","000 message.txt"),"w")
-    fp.write(unicode("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header)))
+    fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","000 {0}.txt".format(file)),"w")
+    try:
+        fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('utf-8'))
+    except:
+        fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('ISO-8859-1'))
     fp.write(unicode("---------------\n\n"))
-    fp.write(unicode(msg_body))
+    try:
+        fp.write(msg_body.decode('utf-8'))
+    except:
+        fp.write(msg_body.decode('ISO-8859-1'))
     fp.close()
 def extract_msg_message_data(ole):
+    msg_from=""
+    msg_to=""
+    msg_cc=""
+    msg_subject=""
+    msg_header=""
+    msg_body=""
     for i in ole.listdir():
         if i[0][:16]=="__substg1.0_0C1A":
             msg_from = extract_msg_stream_text(i,ole)
@@ -286,7 +311,7 @@ def clean_string(input):
         if save_flag == True:
             output = output + letter    
     return output
-def process_doc(filename):
+def process_doc(rootdir,filename):
     word = comtypes.client.CreateObject('Word.Application')
     word.Visible = False
     doc = word.Documents.Open(filename)
@@ -294,17 +319,25 @@ def process_doc(filename):
     doc.Close()
     word.Quit()
     os.remove(filename)
-def process_xls(filename,page_setup_settings):
+def process_xls(rootdir,filename,page_setup_settings):
     excel = comtypes.client.CreateObject('Excel.Application')
     excel.Visible = False
     xls = excel.Workbooks.Open(filename)
     for i in xls.Sheets:
-        i.Select(False)
-        if page_setup_settings!=None:
-            set_worksheet_page_setup_settings(page_setup_settings,i.PageSetup)
+        if i.Visible==-1:
+            i.Select(False)
+            if page_setup_settings!=None:
+                set_worksheet_page_setup_settings(page_setup_settings,i.PageSetup)
     xls.SaveAs(filename+".pdf",FileFormat=57)
     xls.Close(False)
     excel.Quit()
+    os.remove(filename)
+def process_ppt(filename):
+    powerpoint = comtypes.client.CreateObject('PowerPoint.Application')
+    ppt = powerpoint.Presentations.Open(filename)
+    ppt.ExportAsFixedFormat(filename+".pdf",FixedFormatType=2)
+    ppt.Close()
+    powerpoint.Quit()
     os.remove(filename)
 def process_image(filename):
     #image = PythonMagick.Image()
