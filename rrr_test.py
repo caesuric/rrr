@@ -51,8 +51,8 @@ class TestAddDirectorySlipsheets(unittest.TestCase):
         a = "test_add_directory_slipsheets_test_directory"
         os.mkdir(a)
         rrr.add_directory_slipsheets(a,0)
-        self.assertTrue(os.path.isfile(os.path.join(a,"000 ----- INSERT TAB HERE.pdf")))
-        os.remove(os.path.join(a,"000 ----- INSERT TAB HERE.pdf"))
+        self.assertTrue(os.path.isfile(os.path.join(a,"000 TAB ----- "+a+".pdf")))
+        os.remove(os.path.join(a,"000 TAB ----- "+a+".pdf"))
         os.rmdir(a)
     def test_creates_a_slipsheet_at_multiple_levels(self):
         a = "test_add_directory_slipsheets_test_directory"
@@ -60,12 +60,12 @@ class TestAddDirectorySlipsheets(unittest.TestCase):
         os.mkdir(os.path.join(a,a))
         os.mkdir(os.path.join(a,a,a))
         rrr.add_directory_slipsheets(a,2)
-        self.assertTrue(os.path.isfile(os.path.join(a,"000 ----- INSERT TAB HERE.pdf")))
-        self.assertTrue(os.path.isfile(os.path.join(a,a,"000 ----- INSERT TAB HERE.pdf")))
-        self.assertTrue(os.path.isfile(os.path.join(a,a,a,"000 ----- INSERT TAB HERE.pdf")))
-        os.remove(os.path.join(a,"000 ----- INSERT TAB HERE.pdf"))
-        os.remove(os.path.join(a,a,"000 ----- INSERT TAB HERE.pdf"))
-        os.remove(os.path.join(a,a,a,"000 ----- INSERT TAB HERE.pdf"))
+        self.assertTrue(os.path.isfile(os.path.join(a,"000 TAB ----- "+a+".pdf")))
+        self.assertTrue(os.path.isfile(os.path.join(a,a,"000 TAB ----- "+a+".pdf")))
+        self.assertTrue(os.path.isfile(os.path.join(a,a,a,"000 TAB ----- "+a+".pdf")))
+        os.remove(os.path.join(a,"000 TAB ----- "+a+".pdf"))
+        os.remove(os.path.join(a,a,"000 TAB ----- "+a+".pdf"))
+        os.remove(os.path.join(a,a,a,"000 TAB ----- "+a+".pdf"))
         os.rmdir(os.path.join(a,a,a))
         os.rmdir(os.path.join(a,a))
         os.rmdir(a)
@@ -316,3 +316,36 @@ class TestGetRotatedPageDimensions(unittest.TestCase):
         x,y = rrr.get_rotated_page_dimensions(self.page)
         self.assertEqual(x,11*72)
         self.assertEqual(y,8.5*72)
+class TestRomanToArabic(unittest.TestCase):
+    def test_handles_one_roman_numeral(self):
+        self.assertEqual(rrr.roman_to_arabic("I"),1)
+        self.assertEqual(rrr.roman_to_arabic("V"),5)
+        self.assertEqual(rrr.roman_to_arabic("X"),10)
+        self.assertEqual(rrr.roman_to_arabic("L"),50)
+        self.assertEqual(rrr.roman_to_arabic("C"),100)
+        self.assertEqual(rrr.roman_to_arabic("D"),500)
+        self.assertEqual(rrr.roman_to_arabic("M"),1000)
+    def test_handles_two_roman_numerals(self):
+        self.assertEqual(rrr.roman_to_arabic("IV"),4)
+        self.assertEqual(rrr.roman_to_arabic("CC"),200)
+        self.assertEqual(rrr.roman_to_arabic("IC"),99)
+        self.assertEqual(rrr.roman_to_arabic("MM"),2000)
+        self.assertEqual(rrr.roman_to_arabic("XL"),40)
+        self.assertEqual(rrr.roman_to_arabic("XX"),20)
+    def test_handles_large_roman_numerals(self):
+        self.assertEqual(rrr.roman_to_arabic("MMXV"),2015)
+    def test_handles_lower_case(self):
+        self.assertEqual(rrr.roman_to_arabic("cc"),200)
+class TestCustomSorted(unittest.TestCase):
+    def test_sorts_simple_numbers(self):
+        files = ["1","2","3","4","5","6","10","7","8","9"]
+        files = rrr.customsorted(files)
+        self.assertEqual(files,["1","2","3","4","5","6","7","8","9","10"])
+    def test_sorts_simple_roman_numerals(self):
+        files = ["X","IX","VIII","VII","VI","V","IV","III","II","I"]
+        files = rrr.customsorted(files)
+        self.assertEqual(files,["I","II","III","IV","V","VI","VII","VIII","IX","X"])
+    def test_sorts_multiple_levels(self):
+        files = ["I.1.a","I.1.b","I.1.c","II.3.b","I.2.a","I.2.b","II.3.a","I.2.c","I.3.a","I.3.b","I.3.c","III","II.1.a","II.1.b","II.1.c","II.2.a","II.2.b","II.2.c","III.3.a","III.3.b","II.3.c","III.1.a","III.1.b","III.3.c","III.1.c","III.2.a","III.2.b","III.2.c"]
+        files = rrr.customsorted(files)
+        self.assertEqual(files,["I.1.a","I.1.b","I.1.c","I.2.a","I.2.b","I.2.c","I.3.a","I.3.b","I.3.c","II.1.a","II.1.b","II.1.c","II.2.a","II.2.b","II.2.c","II.3.a","II.3.b","II.3.c","III","III.1.a","III.1.b","III.1.c","III.2.a","III.2.b","III.2.c","III.3.a","III.3.b","III.3.c"])
