@@ -27,6 +27,7 @@ from natsort import natsorted
 from PyPDF2 import PdfFileReader,PdfFileWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from operator import itemgetter
 
 def main (rootdir,tabdepth,page_setup_settings):
     reload(sys)
@@ -61,20 +62,249 @@ def add_directory_slipsheet(path,rootdir):
 def rename_resize_rotate(rootdir):
     n=0
     for subdir,dirs,files in os.walk(rootdir):
-        files = natsorted(files)
+        files = customsorted(files)
         for file in files:
             n+=1
             logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
             os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
             if file[-4:].upper()==".PDF":
                 process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
+def customsorted(files):
+    indices = []
+    for file in files:
+        index = []
+        index.append(file)
+        split = file.split(".")
+        for unit in split:
+            index.append(CustomSortUnit(unit))
+        indices.append(index)
+    for index in indices:
+        while len(index)<10:
+            index.append(None)
+    sorted_list = sorted(indices, key=itemgetter(1,2,3,4,5,6,7,8,9))
+    return_list = []
+    for i in sorted_list:
+        return_list.append(i[0])
+    return return_list
+class CustomSortUnit():
+    def __init__(self,unit):
+        self.arabic_numeral = None
+        self.roman_numeral = None
+        self.single_character = None
+        self.string = None
+        if unit.isdigit():
+            self.arabic_numeral = int(unit)
+        if is_roman_numeral(unit):
+            self.roman_numeral = roman_to_arabic(unit)
+        if len(unit)==1:
+            self.single_character=unit
+        self.string = unit
+    def __eq__(self,other):
+        if other==None:
+            return False
+        elif self.arabic_numeral!=None and other.arabic_numeral!=None:
+            return self.arabic_numeral==(other.arabic_numeral)
+        elif self.roman_numeral!=None and other.roman_numeral!=None:
+            return self.roman_numeral==(other.roman_numeral)
+        elif self.single_character!=None and other.single_character!=None:
+            return self.single_character==(other.single_character)
+        elif self.string!=None and other.string!=None:
+            return self.string==(other.string)
+        elif self.arabic_numeral!=None and other.roman_numeral!=None:
+            return self.arabic_numeral==(other.roman_numeral)
+        elif self.roman_numeral!=None and other.arabic_numeral!=None:
+            return self.roman_numeral==(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.single_character!=None:
+            return self.arabic_numeral==(other.single_character)
+        elif self.single_character!=None and other.arabic_numeral!=None:
+            return self.single_character==(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.string!=None:
+            return self.arabic_numeral==(other.string)
+        elif self.string!=None and other.arabic_numeral!=None:
+            return self.string==(other.arabic_numeral)
+        elif (self.roman_numeral!=None and other.single_character!=None) or (self.single_character!=None and other.roman_numeral!=None):
+            return self.single_character==(other.single_character)
+        elif (self.roman_numeral!=None and other.string!=None) or (self.string!=None and other.roman_numeral!=None):
+            return self.string==(other.string)
+        elif (self.single_character!=None and other.string!=None) or (self.string!=None and other.single_character!=None):
+            return self.string==(other.string)
+    def __lt__(self,other):
+        if other==None:
+            return False
+        if self.arabic_numeral!=None and other.arabic_numeral!=None:
+            return self.arabic_numeral<(other.arabic_numeral)
+        elif self.roman_numeral!=None and other.roman_numeral!=None:
+            return self.roman_numeral<(other.roman_numeral)
+        elif self.single_character!=None and other.single_character!=None:
+            return self.single_character<(other.single_character)
+        elif self.string!=None and other.string!=None:
+            return self.string<(other.string)
+        elif self.arabic_numeral!=None and other.roman_numeral!=None:
+            return self.arabic_numeral<(other.roman_numeral)
+        elif self.roman_numeral!=None and other.arabic_numeral!=None:
+            return self.roman_numeral<(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.single_character!=None:
+            return self.arabic_numeral<(other.single_character)
+        elif self.single_character!=None and other.arabic_numeral!=None:
+            return self.single_character<(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.string!=None:
+            return self.arabic_numeral<(other.string)
+        elif self.string!=None and other.arabic_numeral!=None:
+            return self.string<(other.arabic_numeral)
+        elif (self.roman_numeral!=None and other.single_character!=None) or (self.single_character!=None and other.roman_numeral!=None):
+            return self.single_character<(other.single_character)
+        elif (self.roman_numeral!=None and other.string!=None) or (self.string!=None and other.roman_numeral!=None):
+            return self.string<(other.string)
+        elif (self.single_character!=None and other.string!=None) or (self.string!=None and other.single_character!=None):
+            return self.string<(other.string)
+    def __gt__(self,other):
+        if other==None:
+            return True
+        if self.arabic_numeral!=None and other.arabic_numeral!=None:
+            return self.arabic_numeral>(other.arabic_numeral)
+        elif self.roman_numeral!=None and other.roman_numeral!=None:
+            return self.roman_numeral>(other.roman_numeral)
+        elif self.single_character!=None and other.single_character!=None:
+            return self.single_character>(other.single_character)
+        elif self.string!=None and other.string!=None:
+            return self.string>(other.string)
+        elif self.arabic_numeral!=None and other.roman_numeral!=None:
+            return self.arabic_numeral>(other.roman_numeral)
+        elif self.roman_numeral!=None and other.arabic_numeral!=None:
+            return self.roman_numeral>(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.single_character!=None:
+            return self.arabic_numeral>(other.single_character)
+        elif self.single_character!=None and other.arabic_numeral!=None:
+            return self.single_character>(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.string!=None:
+            return self.arabic_numeral>(other.string)
+        elif self.string!=None and other.arabic_numeral!=None:
+            return self.string>(other.arabic_numeral)
+        elif (self.roman_numeral!=None and other.single_character!=None) or (self.single_character!=None and other.roman_numeral!=None):
+            return self.single_character>(other.single_character)
+        elif (self.roman_numeral!=None and other.string!=None) or (self.string!=None and other.roman_numeral!=None):
+            return self.string>(other.string)
+        elif (self.single_character!=None and other.string!=None) or (self.string!=None and other.single_character!=None):
+            return self.string>(other.string)
+    def __le__(self,other):
+        if other==None:
+            return False
+        if self.arabic_numeral!=None and other.arabic_numeral!=None:
+            return self.arabic_numeral<=(other.arabic_numeral)
+        elif self.roman_numeral!=None and other.roman_numeral!=None:
+            return self.roman_numeral<=(other.roman_numeral)
+        elif self.single_character!=None and other.single_character!=None:
+            return self.single_character<=(other.single_character)
+        elif self.string!=None and other.string!=None:
+            return self.string<=(other.string)
+        elif self.arabic_numeral!=None and other.roman_numeral!=None:
+            return self.arabic_numeral<=(other.roman_numeral)
+        elif self.roman_numeral!=None and other.arabic_numeral!=None:
+            return self.roman_numeral<=(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.single_character!=None:
+            return self.arabic_numeral<=(other.single_character)
+        elif self.single_character!=None and other.arabic_numeral!=None:
+            return self.single_character<=(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.string!=None:
+            return self.arabic_numeral<=(other.string)
+        elif self.string!=None and other.arabic_numeral!=None:
+            return self.string<=(other.arabic_numeral)
+        elif (self.roman_numeral!=None and other.single_character!=None) or (self.single_character!=None and other.roman_numeral!=None):
+            return self.single_character<=(other.single_character)
+        elif (self.roman_numeral!=None and other.string!=None) or (self.string!=None and other.roman_numeral!=None):
+            return self.string<=(other.string)
+        elif (self.single_character!=None and other.string!=None) or (self.string!=None and other.single_character!=None):
+            return self.string<=(other.string)
+    def __ge__(self,other):
+        if other==None:
+            return True
+        if self.arabic_numeral!=None and other.arabic_numeral!=None:
+            return self.arabic_numeral>=(other.arabic_numeral)
+        elif self.roman_numeral!=None and other.roman_numeral!=None:
+            return self.roman_numeral>=(other.roman_numeral)
+        elif self.single_character!=None and other.single_character!=None:
+            return self.single_character>=(other.single_character)
+        elif self.string!=None and other.string!=None:
+            return self.string>=(other.string)
+        elif self.arabic_numeral!=None and other.roman_numeral!=None:
+            return self.arabic_numeral>=(other.roman_numeral)
+        elif self.roman_numeral!=None and other.arabic_numeral!=None:
+            return self.roman_numeral>=(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.single_character!=None:
+            return self.arabic_numeral>=(other.single_character)
+        elif self.single_character!=None and other.arabic_numeral!=None:
+            return self.single_character>=(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.string!=None:
+            return self.arabic_numeral>=(other.string)
+        elif self.string!=None and other.arabic_numeral!=None:
+            return self.string>=(other.arabic_numeral)
+        elif (self.roman_numeral!=None and other.single_character!=None) or (self.single_character!=None and other.roman_numeral!=None):
+            return self.single_character>=(other.single_character)
+        elif (self.roman_numeral!=None and other.string!=None) or (self.string!=None and other.roman_numeral!=None):
+            return self.string>=(other.string)
+        elif (self.single_character!=None and other.string!=None) or (self.string!=None and other.single_character!=None):
+            return self.string>=(other.string)
+    def __ne__(self,other):
+        if other==None:
+            return True
+        if self.arabic_numeral!=None and other.arabic_numeral!=None:
+            return self.arabic_numeral!=(other.arabic_numeral)
+        elif self.roman_numeral!=None and other.roman_numeral!=None:
+            return self.roman_numeral!=(other.roman_numeral)
+        elif self.single_character!=None and other.single_character!=None:
+            return self.single_character!=(other.single_character)
+        elif self.string!=None and other.string!=None:
+            return self.string!=(other.string)
+        elif self.arabic_numeral!=None and other.roman_numeral!=None:
+            return self.arabic_numeral!=(other.roman_numeral)
+        elif self.roman_numeral!=None and other.arabic_numeral!=None:
+            return self.roman_numeral!=(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.single_character!=None:
+            return self.arabic_numeral!=(other.single_character)
+        elif self.single_character!=None and other.arabic_numeral!=None:
+            return self.single_character!=(other.arabic_numeral)
+        elif self.arabic_numeral!=None and other.string!=None:
+            return self.arabic_numeral!=(other.string)
+        elif self.string!=None and other.arabic_numeral!=None:
+            return self.string!=(other.arabic_numeral)
+        elif (self.roman_numeral!=None and other.single_character!=None) or (self.single_character!=None and other.roman_numeral!=None):
+            return self.single_character!=(other.single_character)
+        elif (self.roman_numeral!=None and other.string!=None) or (self.string!=None and other.roman_numeral!=None):
+            return self.string!=(other.string)
+        elif (self.single_character!=None and other.string!=None) or (self.string!=None and other.single_character!=None):
+            return self.string!=(other.string)
+def is_roman_numeral(input):
+    valid_numerals=["M","D","C","L","X","V","I"]
+    for letter in input.upper():
+        if letter not in valid_numerals:
+            return False
+    return True
+def roman_to_arabic(input):
+    total = 0
+    input=input.upper()
+    for i in range(len(input)):
+        char = roman_char_to_arabic(input[i])
+        if i!=(len(input)-1):
+            next_char = roman_char_to_arabic(input[i+1])
+        else:
+            next_char = 0
+        if next_char>char:
+            total-=char
+        else:
+            total+=char
+    return total
+def roman_char_to_arabic(char):
+    table = [['M',1000],['D',500],['C',100],['L',50],['X',10],['V',5],['I',1]]
+    for i in table:
+        if char==i[0]:
+            return i[1]
 def convert_to_pdf(rootdir,page_setup_settings):
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
             try:
                 logging.info("Converting {0}".format(os.path.join(subdir,file)))
             except:
-                logging.info("Converting <NAME CANNOT BE DISPLAYED.")
+                logging.info("Converting <NAME CANNOT BE DISPLAYED>.")
             if file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT" or file[-4:].upper()==".RTF":
                 process_doc(rootdir,os.path.join(subdir,file))
             elif file[-4:].upper()==".XLS" or file[-5:].upper()==".XLSX":
@@ -90,7 +320,7 @@ def process_pdf(filename,rootdir):
             shutil.copy(filename,rootdir)
             return
         pdf_dest = PdfFileWriter()
-        add_slipsheet(pdf_dest,filename)
+        #add_slipsheet(pdf_dest,filename)
         process_pdf_pages(pdf,pdf_dest)
         pdf_write(pdf_dest,filename,rootdir)
 def process_pdf_page(page):
