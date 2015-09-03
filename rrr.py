@@ -316,13 +316,12 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
             elif file[-4:].upper()==".PDF" and pdf_reprocess_status==1:
                 reprocess_pdf(os.path.join(subdir,file))
 def reprocess_pdf(filename):
-    print ("TESTING - REACHED")
     acrobat = comtypes.client.CreateObject('AcroExch.App')
     acrobat.Hide()
     pdf = comtypes.client.CreateObject('AcroExch.AVDoc')
     pdf.Open(filename,'temp')
     pdf2 = pdf.GetPDDoc()
-    pdf2.Save(9,filename+".pdf")
+    pdf2.Save(5,filename+".pdf")
     acrobat.CloseAllDocs()
     acrobat.Exit()
     os.remove(filename)
