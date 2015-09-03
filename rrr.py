@@ -321,7 +321,7 @@ def reprocess_pdf(filename):
     pdf = comtypes.client.CreateObject('AcroExch.AVDoc')
     pdf.Open(filename,'temp')
     pdf2 = pdf.GetPDDoc()
-    pdf2.Save(5,filename+".pdf")
+    pdf2.Save(17,filename+".pdf")
     acrobat.CloseAllDocs()
     acrobat.Exit()
     os.remove(filename)
@@ -332,7 +332,7 @@ def process_pdf(filename,rootdir):
             shutil.copy(filename,rootdir)
             return
         pdf_dest = PdfFileWriter()
-        #add_slipsheet(pdf_dest,filename)
+        # add_slipsheet(pdf_dest,filename)
         process_pdf_pages(pdf,pdf_dest)
         pdf_write(pdf_dest,filename,rootdir)
 def process_pdf_page(page):
