@@ -313,21 +313,22 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
                 process_image(os.path.join(subdir,file))
             elif file[-4:].upper()==".PPT" or file[-5:].upper()==".PPTX":
                 process_ppt(os.path.join(subdir,file))
-            elif file[-4:].upper()==".PDF" and pdf_reprocess_status==1:
-                reprocess_pdf(os.path.join(subdir,file))
-def reprocess_pdf(filename):
-    acrobat = comtypes.client.CreateObject('AcroExch.App')
-    acrobat.Hide()
-    pdf = comtypes.client.CreateObject('AcroExch.AVDoc')
-    pdf.Open(filename,'temp')
-    pdf2 = pdf.GetPDDoc()
-    jso = pdf2.GetJSObject()
-    docs = jso.app.activeDocs
-    for doc in docs:
-        doc.saveAs(filename+".ps","com.adobe.acrobat.ps")
-    acrobat.CloseAllDocs()
-    acrobat.Exit()
-    os.remove(filename)
+            # elif file[-4:].upper()==".PDF" and pdf_reprocess_status==1:
+                # reprocess_pdf(os.path.join(subdir,file))
+# def reprocess_pdf(filename):
+    # acrobat = comtypes.client.CreateObject('AcroExch.App')
+    # acrobat.Hide()
+    # pdf = comtypes.client.CreateObject('AcroExch.AVDoc')
+    # pdf.Open(filename,'temp')
+    # pdf2 = pdf.GetPDDoc()
+    # jso = pdf2.GetJSObject()
+    # docs = jso.app.activeDocs
+    # for doc in docs:
+        # doc.flattenPages()
+        # doc.saveAs(filename+".pdf")
+    # acrobat.CloseAllDocs()
+    # acrobat.Exit()
+    # os.remove(filename)
 def process_pdf(filename,rootdir):
         pdf = PdfFileReader(filename,strict=False)
         if pdf.isEncrypted:
