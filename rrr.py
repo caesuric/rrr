@@ -317,13 +317,14 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
                 reprocess_pdf(os.path.join(subdir,file))
 def reprocess_pdf(filename):
     acrobat = comtypes.client.CreateObject('AcroExch.App')
-    # acrobat.Hide()
+    acrobat.Hide()
     pdf = comtypes.client.CreateObject('AcroExch.AVDoc')
     pdf.Open(filename,'temp')
     pdf2 = pdf.GetPDDoc()
-    pdf2.Save(1,filename)
+    pdf2.Save(1,filename+".pdf")
     acrobat.CloseAllDocs()
     acrobat.Exit()
+    os.remove(filename)
 def process_pdf(filename,rootdir):
         pdf = PdfFileReader(filename,strict=False)
         if pdf.isEncrypted:
