@@ -29,7 +29,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from operator import itemgetter
 
-def main (rootdir,tabdepth,page_setup_settings):
+def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status):
     reload(sys)
     sys.setdefaultencoding('utf8')
     logging.basicConfig(filename='rrrlog.txt',level=logging.INFO)
@@ -38,7 +38,7 @@ def main (rootdir,tabdepth,page_setup_settings):
     logging.getLogger('').addHandler(console)
     unzip(rootdir)
     add_directory_slipsheets(rootdir,tabdepth)
-    convert_to_pdf(rootdir,page_setup_settings)
+    convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status)
     rename_resize_rotate(rootdir)
     logging.info("FINISHED!")
 def unzip (rootdir):
@@ -298,7 +298,7 @@ def roman_char_to_arabic(char):
     for i in table:
         if char==i[0]:
             return i[1]
-def convert_to_pdf(rootdir,page_setup_settings):
+def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
             try:
@@ -313,6 +313,17 @@ def convert_to_pdf(rootdir,page_setup_settings):
                 process_image(os.path.join(subdir,file))
             elif file[-4:].upper()==".PPT" or file[-5:].upper()==".PPTX":
                 process_ppt(os.path.join(subdir,file))
+            elif file[-4:].upper()==".PDF" and pdf_reprocess_status==1:
+                reprocess_pdf(os.path.join(subdir,file))
+def reprocess_pdf(filename):
+    acrobat = comtypes.client.CreateObject('AcroExch.App')
+    # acrobat.Hide()
+    pdf = comtypes.client.CreateObject('AcroExch.AVDoc')
+    pdf.Open(filename,'temp')
+    pdf2 = pdf.GetPDDoc()
+    pdf2.Save(1,filename)
+    acrobat.CloseAllDocs()
+    acrobat.Exit()
 def process_pdf(filename,rootdir):
         pdf = PdfFileReader(filename,strict=False)
         if pdf.isEncrypted:
@@ -616,7 +627,7 @@ def get_rotated_page_dimensions(page):
         x=y
         y=temp
     return (x,y)
-def launch_main(sourcedir,destdir,tabdepth,page_setup_settings):
+def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_status):
     if sourcedir==None or destdir==None or tabdepth==None:
         print("One or more missing arguments. Exiting.")
         sys.exit()
@@ -624,7 +635,7 @@ def launch_main(sourcedir,destdir,tabdepth,page_setup_settings):
     destdir = os.path.abspath(destdir)
     os.rmdir(destdir)
     shutil.copytree(sourcedir,destdir)
-    main(destdir,tabdepth,page_setup_settings)
+    main(destdir,tabdepth,page_setup_settings,pdf_reprocess_status)
 def launch_gui():
     root = Tkinter.Tk()
     root.title("RRR")
@@ -649,6 +660,13 @@ class Application(Tkinter.Frame):
         self.create_tab_depth_text()
         self.create_tab_depth_picker()
         self.create_page_setup_button()
+        self.create_pdf_reprocess_checkbox()
+    def create_pdf_reprocess_checkbox(self):
+        self.pdf_reprocess_checkbox = Tkinter.Checkbutton(self)
+        self.pdf_reprocess_checkbox["text"] = "Run all PDFs through Adobe before processing"
+        self.pdf_reprocess_checkbox_value = Tkinter.IntVar()
+        self.pdf_reprocess_checkbox["variable"] = self.pdf_reprocess_checkbox_value
+        self.pdf_reprocess_checkbox.grid(row=3,column=1)
     def create_page_setup_button(self):
         self.page_setup = Tkinter.Button(self)
         self.page_setup["text"] = "Excel Page Setup"
@@ -658,12 +676,12 @@ class Application(Tkinter.Frame):
         self.exit = Tkinter.Button(self)
         self.exit["text"] = "Exit"
         self.exit["command"] = self.quit
-        self.exit.grid(row=4,column=1)
+        self.exit.grid(row=5,column=1)
     def create_start(self):
         self.start_button = Tkinter.Button(self)
         self.start_button["text"] = "Start"
         self.start_button["command"] = self.start
-        self.start_button.grid(row=4,column=0)
+        self.start_button.grid(row=5,column=0)
     def create_choose_source(self):
         self.choose_source = Tkinter.Button(self)
         self.choose_source["text"] = "Source Directory:"
@@ -705,7 +723,7 @@ class Application(Tkinter.Frame):
         elif self.source_directory==self.dest_directory:
             tkMessageBox.showerror("Error","Source and destination directories cannot be the same.")
         else:
-            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings)
+            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.pdf_reprocess_checkbox_value.get())
     def excel_page_setup(self):
         excel = comtypes.client.CreateObject('Excel.Application')
         excel.Visible = False
