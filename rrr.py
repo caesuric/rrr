@@ -324,8 +324,7 @@ def reprocess_pdf(filename):
     jso = pdf2.GetJSObject()
     docs = jso.app.activeDocs
     for doc in docs:
-        doc.flattenPages()
-        doc.saveAs(filename+".pdf")
+        doc.saveAs(filename+".ps","com.adobe.acrobat.ps")
     acrobat.CloseAllDocs()
     acrobat.Exit()
     os.remove(filename)
