@@ -316,6 +316,7 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
             elif file[-4:].upper()==".PDF" and pdf_reprocess_status==1:
                 reprocess_pdf(os.path.join(subdir,file))
 def reprocess_pdf(filename):
+    print ("TESTING - REACHED")
     acrobat = comtypes.client.CreateObject('AcroExch.App')
     acrobat.Hide()
     pdf = comtypes.client.CreateObject('AcroExch.AVDoc')
