@@ -321,9 +321,11 @@ def reprocess_pdf(filename):
     pdf = comtypes.client.CreateObject('AcroExch.AVDoc')
     pdf.Open(filename,'temp')
     pdf2 = pdf.GetPDDoc()
-    pdf3 = pdf2.GetJSObject()
-    pdf3.flattenPages()
-    pdf3.saveAs(filename+".pdf")
+    jso = pdf2.GetJSObject()
+    docs = jso.app.activeDocs
+    for doc in docs:
+        doc.flattenPages()
+        doc.saveAs(filename+".pdf")
     acrobat.CloseAllDocs()
     acrobat.Exit()
     os.remove(filename)
