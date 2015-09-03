@@ -39,7 +39,7 @@ def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status):
     unzip(rootdir)
     add_directory_slipsheets(rootdir,tabdepth)
     convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status)
-    rename_resize_rotate(rootdir)
+    rename_resize_rotate(rootdir,pdf_reprocess_status)
     logging.info("FINISHED!")
 def unzip (rootdir):
     while (zip_found(rootdir)):
@@ -59,7 +59,7 @@ def add_directory_slipsheet(path,rootdir):
     head,directory = os.path.split(head)
     add_slipsheet(pdf_dest,directory)
     pdf_write(pdf_dest,path,rootdir)
-def rename_resize_rotate(rootdir):
+def rename_resize_rotate(rootdir,pdf_reprocess_status):
     n=0
     for subdir,dirs,files in os.walk(rootdir):
         files = customsorted(files)
@@ -68,7 +68,7 @@ def rename_resize_rotate(rootdir):
             logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
             os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
             if file[-4:].upper()==".PDF":
-                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
+                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir,,pdf_reprocess_status)
 def customsorted(files):
     indices = []
     for file in files:
@@ -321,11 +321,11 @@ def reprocess_pdf(filename):
     pdf = comtypes.client.CreateObject('AcroExch.AVDoc')
     pdf.Open(filename,'temp')
     pdf2 = pdf.GetPDDoc()
-    pdf2.Save(17,filename+".pdf")
+    pdf2.Save(1,filename+".pdf")
     acrobat.CloseAllDocs()
     acrobat.Exit()
     os.remove(filename)
-def process_pdf(filename,rootdir):
+def process_pdf(filename,rootdir,pdf_reprocess_status):
         pdf = PdfFileReader(filename,strict=False)
         if pdf.isEncrypted:
             logging.warning("ERROR: File encrypted - check PDF")
@@ -333,9 +333,9 @@ def process_pdf(filename,rootdir):
             return
         pdf_dest = PdfFileWriter()
         # add_slipsheet(pdf_dest,filename)
-        process_pdf_pages(pdf,pdf_dest)
+        process_pdf_pages(pdf,pdf_dest,pdf_reprocess_status)
         pdf_write(pdf_dest,filename,rootdir)
-def process_pdf_page(page):
+def process_pdf_page(page,pdf_reprocess_status):
     x,y = get_rotated_page_dimensions(page)
     if x>y:
         page.rotateCounterClockwise(90)
@@ -358,11 +358,12 @@ def scale_factor(x,y):
         else:
             scale = y_scaling
     return scale
-def scale_to_letter(page,scale):
-    try:
-        page.scaleBy(scale)
-    except:
-        logging.warning("ERROR: Could not scale - check PDF")
+def scale_to_letter(page,scale,pdf_reprocess_status):
+    if pdf_reprocess_status==0:
+        try:
+            page.scaleBy(scale)
+        except:
+            logging.warning("ERROR: Could not scale - check PDF")
     a,b,c,d,x,y = get_page_dimensions(page)
     x_target,y_target = get_target_dimensions(page)
     a,b,c,d = adjust_page_dimensions(a,b,c,d,x,y,x_target,y_target)    
@@ -606,11 +607,11 @@ def add_slipsheet(pdf_dest,text):
     slipsheet_overlay_pdf=PdfFileReader(packet)
     slipsheet_overlay_page=slipsheet_overlay_pdf.getPage(0)
     slipsheet.mergePage(slipsheet_overlay_page)
-def process_pdf_pages(pdf,pdf_dest):
+def process_pdf_pages(pdf,pdf_dest,pdf_reprocess_status):
     numPages = pdf.getNumPages()        
     for i in range(numPages):
         page = pdf.getPage(i)
-        process_pdf_page(page)
+        process_pdf_page(page,pdf_reprocess_status)
         pdf_dest.addPage(page)
 def pdf_write(pdf_dest,filename,rootdir):
     try:
