@@ -322,7 +322,7 @@ def reprocess_pdf(filename):
     pdf = comtypes.client.CreateObject('AcroExch.AVDoc')
     pdf.Open(filename,'temp')
     pdf2 = pdf.GetPDDoc()
-    pdf2.Save(1,filename+".pdf")
+    pdf2.Save(9,filename+".pdf")
     acrobat.CloseAllDocs()
     acrobat.Exit()
     os.remove(filename)
