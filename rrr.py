@@ -29,7 +29,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from operator import itemgetter
 
-def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status):
+def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status):
     reload(sys)
     sys.setdefaultencoding('utf8')
     logging.basicConfig(filename='rrrlog.txt',level=logging.INFO)
@@ -39,7 +39,7 @@ def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status):
     unzip(rootdir)
     add_directory_slipsheets(rootdir,tabdepth)
     convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status)
-    rename_resize_rotate(rootdir)
+    rename_resize_rotate(rootdir,numbering_status)
     logging.info("FINISHED!")
 def unzip (rootdir):
     while (zip_found(rootdir)):
@@ -59,16 +59,19 @@ def add_directory_slipsheet(path,rootdir):
     head,directory = os.path.split(head)
     add_slipsheet(pdf_dest,directory)
     pdf_write(pdf_dest,path,rootdir)
-def rename_resize_rotate(rootdir):
+def rename_resize_rotate(rootdir,numbering_status):
     n=0
     for subdir,dirs,files in os.walk(rootdir):
         files = customsorted(files)
         for file in files:
             n+=1
             logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
-            os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
-            if file[-4:].upper()==".PDF":
-                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
+            if numbering_status==1:
+                os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
+                if file[-4:].upper()==".PDF":
+                    process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
+            else:
+                process_pdf(os.path.join(subdir,file),rootdir)
 def customsorted(files):
     indices = []
     for file in files:
@@ -509,7 +512,7 @@ def write_msg_attachment(index,ole,subdir,file,filename):
                     pass
 def extract_msg_message(ole,subdir,file):
     msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data(ole)    
-    fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","000 {0}.txt".format(file)),"w")
+    fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","00 {0}.txt".format(file)),"w")
     try:
         fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('utf-8'))
     except:
@@ -632,7 +635,7 @@ def get_rotated_page_dimensions(page):
         x=y
         y=temp
     return (x,y)
-def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_status):
+def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status):
     if sourcedir==None or destdir==None or tabdepth==None:
         print("One or more missing arguments. Exiting.")
         sys.exit()
@@ -640,7 +643,7 @@ def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_sta
     destdir = os.path.abspath(destdir)
     os.rmdir(destdir)
     shutil.copytree(sourcedir,destdir)
-    main(destdir,tabdepth,page_setup_settings,pdf_reprocess_status)
+    main(destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status)
 def launch_gui():
     root = Tkinter.Tk()
     root.title("RRR")
@@ -665,13 +668,20 @@ class Application(Tkinter.Frame):
         self.create_tab_depth_text()
         self.create_tab_depth_picker()
         self.create_page_setup_button()
-        # self.create_pdf_reprocess_checkbox()
+        self.create_pdf_reprocess_checkbox()
+        self.create_numbering_checkbox()
     def create_pdf_reprocess_checkbox(self):
         self.pdf_reprocess_checkbox = Tkinter.Checkbutton(self)
-        self.pdf_reprocess_checkbox["text"] = "Run all PDFs through Adobe before processing"
+        self.pdf_reprocess_checkbox["text"] = "Run all PDFs through Adobe before processing (currently nonfunctional)"
         self.pdf_reprocess_checkbox_value = Tkinter.IntVar()
         self.pdf_reprocess_checkbox["variable"] = self.pdf_reprocess_checkbox_value
         self.pdf_reprocess_checkbox.grid(row=3,column=1)
+    def create_numbering_checkbox(self):
+        self.numbering_checkbox = Tkinter.Checkbutton(self)
+        self.numbering_checkbox["text"] = "Number files"
+        self.numbering_checkbox_value = Tkinter.IntVar()
+        self.numbering_checkbox["variable"] = self.numbering_checkbox_value
+        self.numbering_checkbox.grid(row=4,column=1)
     def create_page_setup_button(self):
         self.page_setup = Tkinter.Button(self)
         self.page_setup["text"] = "Excel Page Setup"
@@ -728,7 +738,7 @@ class Application(Tkinter.Frame):
         elif self.source_directory==self.dest_directory:
             tkMessageBox.showerror("Error","Source and destination directories cannot be the same.")
         else:
-            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.pdf_reprocess_checkbox_value.get())
+            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.pdf_reprocess_checkbox_value.get(),self.numbering_checkbox_value.get())
     def excel_page_setup(self):
         excel = comtypes.client.CreateObject('Excel.Application')
         excel.Visible = False
