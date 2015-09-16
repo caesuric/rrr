@@ -349,3 +349,21 @@ class TestCustomSorted(unittest.TestCase):
         files = ["I.1.a","I.1.b","I.1.c","II.3.b","I.2.a","I.2.b","II.3.a","I.2.c","I.3.a","I.3.b","I.3.c","III","II.1.a","II.1.b","II.1.c","II.2.a","II.2.b","II.2.c","III.3.a","III.3.b","II.3.c","III.1.a","III.1.b","III.3.c","III.1.c","III.2.a","III.2.b","III.2.c"]
         files = rrr.customsorted(files)
         self.assertEqual(files,["I.1.a","I.1.b","I.1.c","I.2.a","I.2.b","I.2.c","I.3.a","I.3.b","I.3.c","II.1.a","II.1.b","II.1.c","II.2.a","II.2.b","II.2.c","II.3.a","II.3.b","II.3.c","III","III.1.a","III.1.b","III.1.c","III.2.a","III.2.b","III.2.c","III.3.a","III.3.b","III.3.c"])
+    def test_sorts_i_a_followed_by_roman_numeral_followed_by_text(self):
+        files = ["1.a.VIII text","1.a.IX text"]
+        files = rrr.customsorted(files)
+        self.assertEqual(files,["1.a.VIII text","1.a.IX text"])
+    def test_sorts_roman_8_and_9_correctly(self):
+        files = ["IX","VIII"]
+        files = rrr.customsorted(files)
+        self.assertEqual(files,["VIII","IX"])
+    def test_sorts_roman_8_and_9_correctly_with_text_afterwards(self):
+        files = ["VIII text","IX text"]
+        files = rrr.customsorted(files)
+        self.assertEqual(files,["VIII text","IX text"])
+class TestCustomSortUnit(unittest.TestCase):
+    def test_compare_single_character_to_arabic_numeral(self):
+        a = rrr.CustomSortUnit("a")
+        b = rrr.CustomSortUnit("10")
+        self.assertTrue(a>=b)
+        self.assertFalse(b>=a)
