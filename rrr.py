@@ -29,7 +29,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from operator import itemgetter
 
-def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status):
+def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status):
     reload(sys)
     sys.setdefaultencoding('utf8')
     logging.basicConfig(filename='rrrlog.txt',level=logging.INFO)
@@ -39,7 +39,7 @@ def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_st
     unzip(rootdir)
     add_directory_slipsheets(rootdir,tabdepth)
     convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status)
-    rename_resize_rotate(rootdir,numbering_status)
+    rename_resize_rotate(rootdir,numbering_status,slipsheets_status)
     logging.info("FINISHED!")
 def unzip (rootdir):
     while (zip_found(rootdir)):
@@ -59,7 +59,7 @@ def add_directory_slipsheet(path,rootdir):
     head,directory = os.path.split(head)
     add_slipsheet(pdf_dest,directory)
     pdf_write(pdf_dest,path,rootdir)
-def rename_resize_rotate(rootdir,numbering_status):
+def rename_resize_rotate(rootdir,numbering_status,slipsheets_status):
     n=0
     for filename in customwalk(rootdir):
         n+=1
@@ -68,14 +68,17 @@ def rename_resize_rotate(rootdir,numbering_status):
             logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
             os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
             if file[-4:].upper()==".PDF":
-                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
+                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir,slipsheets_status)
         else:
             logging.info ("RRRing {0}".format(os.path.join(subdir,file)))
             if file[-4:].upper()==".PDF":
-                process_pdf(os.path.join(subdir,file),rootdir)
+                process_pdf(os.path.join(subdir,file),rootdir,slipsheets_status)
 def customwalk(rootdir):
     data = []
-    tree = get_directory_list(rootdir)
+    tree = [rootdir]
+    tree2 = get_directory_list(rootdir)
+    for dir in tree2:
+        tree.append(dir)
     for dir in tree:
         files = get_file_list(dir)
         if files!=None:
@@ -97,6 +100,7 @@ def get_directory_list(rootdir):
     return data
 def get_file_list(rootdir):
     data = []
+    files = []
     for set in os.walk(rootdir):
         subdir,dirs,files = set
         break
@@ -366,14 +370,15 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
     # acrobat.CloseAllDocs()
     # acrobat.Exit()
     # os.remove(filename)
-def process_pdf(filename,rootdir):
+def process_pdf(filename,rootdir,slipsheets_status):
         pdf = PdfFileReader(filename,strict=False)
         if pdf.isEncrypted:
             logging.warning("ERROR: File encrypted - check PDF")
             shutil.copy(filename,rootdir)
             return
         pdf_dest = PdfFileWriter()
-        # add_slipsheet(pdf_dest,filename)
+        if slipsheets_status==1:
+            add_slipsheet(pdf_dest,filename)
         process_pdf_pages(pdf,pdf_dest)
         pdf_write(pdf_dest,filename,rootdir)
 def process_pdf_page(page):
@@ -669,7 +674,7 @@ def get_rotated_page_dimensions(page):
         x=y
         y=temp
     return (x,y)
-def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status):
+def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status):
     if sourcedir==None or destdir==None or tabdepth==None:
         print("One or more missing arguments. Exiting.")
         sys.exit()
@@ -677,7 +682,7 @@ def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_sta
     destdir = os.path.abspath(destdir)
     os.rmdir(destdir)
     shutil.copytree(sourcedir,destdir)
-    main(destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status)
+    main(destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status)
 def launch_gui():
     root = Tkinter.Tk()
     root.title("RRR")
@@ -704,9 +709,11 @@ class Application(Tkinter.Frame):
         self.create_page_setup_button()
         self.create_pdf_reprocess_checkbox()
         self.create_numbering_checkbox()
+        self.create_slipsheets_checkbox()
     def create_pdf_reprocess_checkbox(self):
         self.pdf_reprocess_checkbox = Tkinter.Checkbutton(self)
-        self.pdf_reprocess_checkbox["text"] = "Run all PDFs through Adobe before processing (currently nonfunctional)"
+        # self.pdf_reprocess_checkbox["text"] = "Run all PDFs through Adobe before processing"
+        self.pdf_reprocess_checkbox["text"] = "DISABLED OPTION"
         self.pdf_reprocess_checkbox_value = Tkinter.IntVar()
         self.pdf_reprocess_checkbox["variable"] = self.pdf_reprocess_checkbox_value
         self.pdf_reprocess_checkbox.grid(row=3,column=1)
@@ -716,6 +723,12 @@ class Application(Tkinter.Frame):
         self.numbering_checkbox_value = Tkinter.IntVar()
         self.numbering_checkbox["variable"] = self.numbering_checkbox_value
         self.numbering_checkbox.grid(row=4,column=1)
+    def create_slipsheets_checkbox(self):
+        self.slipsheets_checkbox = Tkinter.Checkbutton(self)
+        self.slipsheets_checkbox["text"] = "Slipsheets"
+        self.slipsheets_checkbox_value = Tkinter.IntVar()
+        self.slipsheets_checkbox["variable"] = self.slipsheets_checkbox_value
+        self.slipsheets_checkbox.grid(row=4,column=0)
     def create_page_setup_button(self):
         self.page_setup = Tkinter.Button(self)
         self.page_setup["text"] = "Excel Page Setup"
@@ -772,7 +785,7 @@ class Application(Tkinter.Frame):
         elif self.source_directory==self.dest_directory:
             tkMessageBox.showerror("Error","Source and destination directories cannot be the same.")
         else:
-            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.pdf_reprocess_checkbox_value.get(),self.numbering_checkbox_value.get())
+            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.pdf_reprocess_checkbox_value.get(),self.numbering_checkbox_value.get(),self.slipsheets_checkbox_value.get())
     def excel_page_setup(self):
         excel = comtypes.client.CreateObject('Excel.Application')
         excel.Visible = False
