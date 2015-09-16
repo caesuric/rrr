@@ -61,25 +61,57 @@ def add_directory_slipsheet(path,rootdir):
     pdf_write(pdf_dest,path,rootdir)
 def rename_resize_rotate(rootdir,numbering_status):
     n=0
-    for subdir,dirs,files in os.walk(rootdir):
+    for filename in customwalk(rootdir):
+        n+=1
+        subdir,file = os.path.split(filename)
+        if numbering_status==1:
+            logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
+            os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
+            if file[-4:].upper()==".PDF":
+                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
+        else:
+            logging.info ("RRRing {0}".format(os.path.join(subdir,file)))
+            if file[-4:].upper()==".PDF":
+                process_pdf(os.path.join(subdir,file),rootdir)
+def customwalk(rootdir):
+    data = []
+    tree = get_directory_list(rootdir)
+    for dir in tree:
+        files = get_file_list(dir)
+        if files!=None:
+            for file in files:
+                data.append(file)
+    return data
+def get_directory_list(rootdir):
+    data = []
+    for set in os.walk(rootdir):
+        subdir,dirs,files = set
+        break
+    if dirs!=[]:
+        dirs = customsorted(dirs)
+        for dir in dirs:
+            data.append(os.path.join(subdir,dir))
+            data.append(get_directory_list(os.path.join(subdir,dir)))
+            if data[len(data)-1]==[]:
+                data.remove([])
+    return data
+def get_file_list(rootdir):
+    data = []
+    for set in os.walk(rootdir):
+        subdir,dirs,files = set
+        break
+    if files!=[]:
         files = customsorted(files)
-        for file in files:
-            n+=1
-            if numbering_status==1:
-                logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
-                os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
-                if file[-4:].upper()==".PDF":
-                    process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
-            else:
-                logging.info ("RRRing {0}".format(os.path.join(subdir,file)))
-                if file[-4:].upper()==".PDF":
-                    process_pdf(os.path.join(subdir,file),rootdir)
+    for file in files:
+        data.append(os.path.join(rootdir,file))
+    return data
 def customsorted(files):
     indices = []
     for file in files:
         index = []
         index.append(file)
-        split = file.split(".")
+        split_pre = file.split(" ")[0]
+        split = split_pre.split(".")
         for unit in split:
             index.append(CustomSortUnit(unit))
         indices.append(index)
