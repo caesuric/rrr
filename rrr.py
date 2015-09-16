@@ -65,13 +65,15 @@ def rename_resize_rotate(rootdir,numbering_status):
         files = customsorted(files)
         for file in files:
             n+=1
-            logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
             if numbering_status==1:
+                logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
                 os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
                 if file[-4:].upper()==".PDF":
                     process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir)
             else:
-                process_pdf(os.path.join(subdir,file),rootdir)
+                logging.info ("RRRing {0}".format(os.path.join(subdir,file)))
+                if file[-4:].upper()==".PDF":
+                    process_pdf(os.path.join(subdir,file),rootdir)
 def customsorted(files):
     indices = []
     for file in files:
