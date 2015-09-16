@@ -665,7 +665,7 @@ class Application(Tkinter.Frame):
         self.create_tab_depth_text()
         self.create_tab_depth_picker()
         self.create_page_setup_button()
-        self.create_pdf_reprocess_checkbox()
+        # self.create_pdf_reprocess_checkbox()
     def create_pdf_reprocess_checkbox(self):
         self.pdf_reprocess_checkbox = Tkinter.Checkbutton(self)
         self.pdf_reprocess_checkbox["text"] = "Run all PDFs through Adobe before processing"
