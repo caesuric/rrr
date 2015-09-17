@@ -29,7 +29,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from operator import itemgetter
 
-def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status):
+def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status):
     reload(sys)
     sys.setdefaultencoding('utf8')
     logging.basicConfig(filename='rrrlog.txt',level=logging.INFO)
@@ -45,6 +45,28 @@ def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_st
     logging.info("FINISHED!")
     app.progress_bar["value"] = 100
     app.progress_bar.update()
+    if flatten_status==1:
+        flatten(rootdir)
+    app.progress_text2["text"] = "Ready!"
+    app.progress_text2.update()
+def flatten(rootdir):
+    for subdir,dirs,files in os.walk(rootdir):
+        for file in files:
+            if os.path.exists(os.path.join(rootdir,file))==False:
+                shutil.copy(os.path.join(subdir,file),rootdir)
+                os.remove(os.path.join(subdir,file))
+            elif subdir==rootdir:
+                pass
+            else:
+                i=2
+                while os.path.exists(os.path.join(rootdir,"Copy {0} of ".format(i)+file)):
+                    i+=1
+                shutil.copy(os.path.join(subdir,file),os.path.join(rootdir,"Copy {0} of ".format(i)+file))
+                os.remove(os.path.join(subdir,file))
+    for subdir,dirs,files in os.walk(rootdir):
+        for dir in dirs:
+            shutil.rmtree(os.path.join(subdir,dir))
+        break
 def unzip (rootdir):
     while (zip_found(rootdir)):
         process_zips(rootdir)
@@ -522,7 +544,7 @@ def update_page_dimensions(page,a,b,c,d):
     page.cropBox.lowerRight = (c,d)
 def zip_found(rootdir):
     return_value = False
-    for subdirs,dirs,files in os.walk(rootdir):
+    for subdir,dirs,files in os.walk(rootdir):
         for file in files:
             if file[-4:].upper()==".ZIP" or file[-4:].upper()==".MSG":
                 return_value = True
@@ -749,7 +771,7 @@ def get_rotated_page_dimensions(page):
         x=y
         y=temp
     return (x,y)
-def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status):
+def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status):
     if sourcedir==None or destdir==None or tabdepth==None:
         print("One or more missing arguments. Exiting.")
         sys.exit()
@@ -757,7 +779,7 @@ def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_sta
     destdir = os.path.abspath(destdir)
     os.rmdir(destdir)
     shutil.copytree(sourcedir,destdir)
-    main(destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status)
+    main(destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status)
 def launch_gui():
     root = Tkinter.Tk()
     root.title("RRR")
@@ -789,19 +811,26 @@ class Application(Tkinter.Frame):
         self.create_progress_bar()
         self.create_progress_text()
         self.create_progress_text2()
+        self.create_flatten_checkbox()
+    def create_flatten_checkbox(self):
+        self.flatten_checkbox = Tkinter.Checkbutton(self)
+        self.flatten_checkbox["text"] = "Flatten directory"
+        self.flatten_checkbox_value = Tkinter.IntVar()
+        self.flatten_checkbox["variable"] = self.flatten_checkbox_value
+        self.flatten_checkbox.grid(row=5,column=1)
     def create_progress_text(self):
         self.progress_text = Tkinter.Label(self)
         self.progress_text["text"] = "0%"
-        self.progress_text.grid(row=7,column=0,columnspan=2)
+        self.progress_text.grid(row=8,column=0,columnspan=2)
     def create_progress_text2(self):
         self.progress_text2 = Tkinter.Label(self)
         self.progress_text2["text"] = "Ready!"
-        self.progress_text2.grid(row=8,column=0,columnspan=2)
+        self.progress_text2.grid(row=9,column=0,columnspan=2)
     def create_progress_bar(self):
         self.progress_bar = ttk.Progressbar(self)
         self.progress_bar["length"] = 250
         self.progress_bar["value"] = 0
-        self.progress_bar.grid(row=6,column=0,columnspan=2,pady=4)
+        self.progress_bar.grid(row=7,column=0,columnspan=2,pady=4)
     def create_pdf_reprocess_checkbox(self):
         self.pdf_reprocess_checkbox = Tkinter.Checkbutton(self)
         # self.pdf_reprocess_checkbox["text"] = "Run all PDFs through Adobe before processing"
@@ -830,12 +859,12 @@ class Application(Tkinter.Frame):
         self.exit = Tkinter.Button(self)
         self.exit["text"] = "Exit"
         self.exit["command"] = self.quit
-        self.exit.grid(row=5,column=1)
+        self.exit.grid(row=6,column=1)
     def create_start(self):
         self.start_button = Tkinter.Button(self)
         self.start_button["text"] = "Start"
         self.start_button["command"] = self.start
-        self.start_button.grid(row=5,column=0)
+        self.start_button.grid(row=6,column=0)
     def create_choose_source(self):
         self.choose_source = Tkinter.Button(self)
         self.choose_source["text"] = "Source Directory:"
@@ -877,7 +906,7 @@ class Application(Tkinter.Frame):
         elif self.source_directory==self.dest_directory:
             tkMessageBox.showerror("Error","Source and destination directories cannot be the same.")
         else:
-            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.pdf_reprocess_checkbox_value.get(),self.numbering_checkbox_value.get(),self.slipsheets_checkbox_value.get())
+            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.pdf_reprocess_checkbox_value.get(),self.numbering_checkbox_value.get(),self.slipsheets_checkbox_value.get(),self.flatten_checkbox_value.get())
     def excel_page_setup(self):
         excel = comtypes.client.CreateObject('Excel.Application')
         excel.Visible = False
