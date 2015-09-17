@@ -782,7 +782,7 @@ class Application(Tkinter.Frame):
         self.create_tab_depth_text()
         self.create_tab_depth_picker()
         self.create_page_setup_button()
-        self.create_pdf_reprocess_checkbox()
+        #self.create_pdf_reprocess_checkbox()
         self.create_numbering_checkbox()
         self.create_slipsheets_checkbox()
         self.create_progress_bar()
