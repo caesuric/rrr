@@ -22,7 +22,7 @@ Options:
     -h --help               Show this screen
 """
 import os,io,zipfile,sys,comtypes.client,email,mimetypes,olefile,shutil,time,StringIO
-import logging,Tkinter,tkFileDialog,tkMessageBox,copy,sys
+import logging,Tkinter,tkFileDialog,tkMessageBox,copy,sys,ttk
 from natsort import natsorted
 from PyPDF2 import PdfFileReader,PdfFileWriter
 from reportlab.pdfgen import canvas
@@ -39,8 +39,12 @@ def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_st
     unzip(rootdir)
     add_directory_slipsheets(rootdir,tabdepth)
     convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status)
+    app.progress_bar["value"] = 50
+    app.progress_bar.update()
     rename_resize_rotate(rootdir,numbering_status,slipsheets_status)
     logging.info("FINISHED!")
+    app.progress_bar["value"] = 100
+    app.progress_bar.update()
 def unzip (rootdir):
     while (zip_found(rootdir)):
         process_zips(rootdir)
@@ -60,8 +64,22 @@ def add_directory_slipsheet(path,rootdir):
     add_slipsheet(pdf_dest,directory)
     pdf_write(pdf_dest,path,rootdir)
 def rename_resize_rotate(rootdir,numbering_status,slipsheets_status):
+    total_size = get_size(rootdir)
+    size_so_far = 0
+    start_time = time.time()
     n=0
     for filename in customwalk(rootdir):
+        size_so_far+=os.path.getsize(filename)
+        percentage = (float(size_so_far)/float(total_size)*50)+50
+        app.progress_bar["value"]=percentage
+        app.progress_bar.update()
+        app.progress_text["text"]="{0}%".format(round(percentage,2))
+        app.progress_text.update()
+        seconds_elapsed = time.time()-start_time
+        task_percentage = (percentage-50)*2
+        time_remaining = (100-task_percentage)/task_percentage*seconds_elapsed
+        app.progress_text2["text"]="Processing PDFs. {0} remaining.".format(time_as_string(int(time_remaining)))
+        app.progress_text2.update()
         n+=1
         subdir,file = os.path.split(filename)
         if numbering_status==1:
@@ -94,7 +112,8 @@ def get_directory_list(rootdir):
         dirs = customsorted(dirs)
         for dir in dirs:
             data.append(os.path.join(subdir,dir))
-            data.append(get_directory_list(os.path.join(subdir,dir)))
+            for dir2 in get_directory_list(os.path.join(subdir,dir)):
+                data.append(dir2)
             if data[len(data)-1]==[]:
                 data.remove([])
     return data
@@ -339,13 +358,58 @@ def roman_char_to_arabic(char):
     for i in table:
         if char==i[0]:
             return i[1]
+def get_size(rootdir):
+    total = 0
+    for subdir,dirs,files in os.walk(rootdir):
+        for file in files:
+            total+=os.path.getsize(os.path.join(subdir,file))
+    return total
+def get_size_without_pdfs(rootdir):
+    total = 0
+    for subdir,dirs,files in os.walk(rootdir):
+        for file in files:
+            if file[-4:].upper()!=".PDF":
+                total+=os.path.getsize(os.path.join(subdir,file))
+    return total
+def time_as_string(seconds):
+    s = seconds
+    d = s/60/60/24
+    s-=(d*60*60*24)
+    h = s/60/60
+    s-=(h*60*60)
+    m = s/60
+    s-=(m*60)
+    value = ""
+    if d>0:
+        value+="{0}d".format(d)
+    if h>0 or d>0:
+        value+="{0}h".format(h)
+    if m>0 or h>0 or d>0:
+        value+="{0:02d}m".format(m)
+    value+="{0:02d}s".format(s)
+    return value
 def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
+    total_size = get_size_without_pdfs(rootdir)
+    size_so_far=0
+    start_time = time.time()
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
             try:
                 logging.info("Converting {0}".format(os.path.join(subdir,file)))
             except:
                 logging.info("Converting <NAME CANNOT BE DISPLAYED>.")
+            if file[-4:].upper()!=".PDF":
+                size_so_far+=os.path.getsize(os.path.join(subdir,file))
+                percentage = float(size_so_far)/float(total_size)*50
+                app.progress_bar["value"]=percentage
+                app.progress_bar.update()
+                app.progress_text["text"]="{0}%".format(round(percentage,2))
+                app.progress_text.update()
+                seconds_elapsed = time.time()-start_time
+                task_percentage = percentage*2
+                time_remaining = (100-task_percentage)/task_percentage*seconds_elapsed
+                app.progress_text2["text"]="Converting files to PDF format. {0} remaining.".format(time_as_string(int(time_remaining)))
+                app.progress_text2.update()
             if file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT" or file[-4:].upper()==".RTF":
                 process_doc(rootdir,os.path.join(subdir,file))
             elif file[-4:].upper()==".XLS" or file[-5:].upper()==".XLSX":
@@ -356,6 +420,10 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
                 process_ppt(os.path.join(subdir,file))
             # elif file[-4:].upper()==".PDF" and pdf_reprocess_status==1:
                 # reprocess_pdf(os.path.join(subdir,file))
+            elif file[-4:].upper()==".PDF":
+                pass
+            else:
+                process_misc(os.path.join(subdir,file))
 # def reprocess_pdf(filename):
     # acrobat = comtypes.client.CreateObject('AcroExch.App')
     # acrobat.Hide()
@@ -381,6 +449,11 @@ def process_pdf(filename,rootdir,slipsheets_status):
             add_slipsheet(pdf_dest,filename)
         process_pdf_pages(pdf,pdf_dest)
         pdf_write(pdf_dest,filename,rootdir)
+def process_misc(filename):
+    os.remove(filename)
+    pdf_dest = PdfFileWriter()
+    add_slipsheet(pdf_dest,"File Unprintable")
+    pdf_dest.write(io.open(filename+".pdf",mode='w+b'))
 def process_pdf_page(page):
     x,y = get_rotated_page_dimensions(page)
     if x>y:
@@ -652,6 +725,7 @@ def add_slipsheet(pdf_dest,text):
     slipsheet_overlay_pdf=PdfFileReader(packet)
     slipsheet_overlay_page=slipsheet_overlay_pdf.getPage(0)
     slipsheet.mergePage(slipsheet_overlay_page)
+
 def process_pdf_pages(pdf,pdf_dest):
     numPages = pdf.getNumPages()        
     for i in range(numPages):
@@ -686,6 +760,7 @@ def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_sta
 def launch_gui():
     root = Tkinter.Tk()
     root.title("RRR")
+    global app
     app = Application(master=root)
     app.mainloop()
     root.destroy()
@@ -710,6 +785,22 @@ class Application(Tkinter.Frame):
         self.create_pdf_reprocess_checkbox()
         self.create_numbering_checkbox()
         self.create_slipsheets_checkbox()
+        self.create_progress_bar()
+        self.create_progress_text()
+        self.create_progress_text2()
+    def create_progress_text(self):
+        self.progress_text = Tkinter.Label(self)
+        self.progress_text["text"] = "0%"
+        self.progress_text.grid(row=7,column=0,columnspan=2)
+    def create_progress_text2(self):
+        self.progress_text2 = Tkinter.Label(self)
+        self.progress_text2["text"] = "Ready!"
+        self.progress_text2.grid(row=8,column=0,columnspan=2)
+    def create_progress_bar(self):
+        self.progress_bar = ttk.Progressbar(self)
+        self.progress_bar["length"] = 250
+        self.progress_bar["value"] = 0
+        self.progress_bar.grid(row=6,column=0,columnspan=2,pady=4)
     def create_pdf_reprocess_checkbox(self):
         self.pdf_reprocess_checkbox = Tkinter.Checkbutton(self)
         # self.pdf_reprocess_checkbox["text"] = "Run all PDFs through Adobe before processing"
