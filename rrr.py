@@ -72,7 +72,7 @@ def unzip (rootdir):
         process_zips(rootdir)
 def add_directory_slipsheets (rootdir,tabdepth):
     tabdepth+=rootdir.count(os.path.sep)
-    for subdir,dirs,file in os.walk(rootdir):
+    for subdir,dirs,files in os.walk(rootdir):
         if subdir.count(os.path.sep)<=tabdepth:
             trash,temp = os.path.split(subdir)
             a = os.path.join(subdir,"000 TAB ----- "+temp+".pdf")
@@ -89,7 +89,7 @@ def rename_resize_rotate(rootdir,numbering_status,slipsheets_status):
     total_size = get_size(rootdir)
     size_so_far = 0
     start_time = time.time()
-    n=0
+    n=-1
     for filename in customwalk(rootdir):
         size_so_far+=os.path.getsize(filename)
         percentage = (float(size_so_far)/float(total_size)*50)+50
