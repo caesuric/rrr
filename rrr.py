@@ -547,19 +547,20 @@ def process_mime_msg(subdir,file):
     fp.close()
     counter = 1
     for part in msg.walk():
-        process_mime_msg_section(part,subdir,file)
+        counter = process_mime_msg_section(part,subdir,file,counter)
     os.remove(os.path.join(subdir,file))
-def process_mime_msg_section(part,subdir,file):
+def process_mime_msg_section(part,subdir,file,counter):
     if part.get_content_maintype() == 'multipart':
-        return
+        return counter
     filename = part.get_filename()
     if filename==None:
-        filename = generate_mime_msg_section_filename(part)
+        filename = generate_mime_msg_section_filename(part,counter)
     counter += 1
     fp = open(os.path.join(os.path.join(subdir,file)+".dir",filename),'wb')
     fp.write(part.get_payload(decode=True))
     fp.close()
-def generate_mime_msg_section_filename(part):
+    return counter
+def generate_mime_msg_section_filename(part,counter):
     ext = mimetypes.guess_extension(part.get_content_type())
     if not ext:
         ext = ".bin"
@@ -782,7 +783,7 @@ class Application(Tkinter.Frame):
         self.create_tab_depth_text()
         self.create_tab_depth_picker()
         self.create_page_setup_button()
-        #self.create_pdf_reprocess_checkbox()
+        self.create_pdf_reprocess_checkbox()
         self.create_numbering_checkbox()
         self.create_slipsheets_checkbox()
         self.create_progress_bar()
