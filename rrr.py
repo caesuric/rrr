@@ -29,7 +29,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from operator import itemgetter
 
-def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status):
+def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status,max_pdf_size,max_excel_size):
     reload(sys)
     sys.setdefaultencoding('utf8')
     logging.basicConfig(filename='rrrlog.txt',level=logging.INFO)
@@ -41,12 +41,13 @@ def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_st
     convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status)
     app.progress_bar["value"] = 50
     app.progress_bar.update()
-    rename_resize_rotate(rootdir,numbering_status,slipsheets_status)
+    rename_resize_rotate(rootdir,numbering_status,slipsheets_status,tabdepth,max_pdf_size,max_excel_size)
+    if flatten_status==1:
+        logging.info("Flattening directory structure...")
+        flatten(rootdir)
     logging.info("FINISHED!")
     app.progress_bar["value"] = 100
     app.progress_bar.update()
-    if flatten_status==1:
-        flatten(rootdir)
     app.progress_text2["text"] = "Ready!"
     app.progress_text2.update()
 def flatten(rootdir):
@@ -71,7 +72,7 @@ def unzip (rootdir):
     while (zip_found(rootdir)):
         process_zips(rootdir)
 def add_directory_slipsheets (rootdir,tabdepth):
-    tabdepth+=rootdir.count(os.path.sep)
+    tabdepth+=rootdir.count(os.path.sep)-1
     for subdir,dirs,files in os.walk(rootdir):
         if subdir.count(os.path.sep)<=tabdepth:
             trash,temp = os.path.split(subdir)
@@ -85,34 +86,38 @@ def add_directory_slipsheet(path,rootdir):
     head,directory = os.path.split(head)
     add_slipsheet(pdf_dest,directory)
     pdf_write(pdf_dest,path,rootdir)
-def rename_resize_rotate(rootdir,numbering_status,slipsheets_status):
+def rename_resize_rotate(rootdir,numbering_status,slipsheets_status,tabdepth,max_pdf_size,max_excel_size):
     total_size = get_size(rootdir)
     size_so_far = 0
     start_time = time.time()
     n=-1
+    if tabdepth==0:
+        n+=1
     for filename in customwalk(rootdir):
         size_so_far+=os.path.getsize(filename)
         percentage = (float(size_so_far)/float(total_size)*50)+50
-        app.progress_bar["value"]=percentage
-        app.progress_bar.update()
-        app.progress_text["text"]="{0}%".format(round(percentage,2))
-        app.progress_text.update()
-        seconds_elapsed = time.time()-start_time
-        task_percentage = (percentage-50)*2
-        time_remaining = (100-task_percentage)/task_percentage*seconds_elapsed
-        app.progress_text2["text"]="Processing PDFs. {0} remaining.".format(time_as_string(int(time_remaining)))
-        app.progress_text2.update()
         n+=1
         subdir,file = os.path.split(filename)
         if numbering_status==1:
             logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
             os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
             if file[-4:].upper()==".PDF":
-                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir,slipsheets_status)
+                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir,slipsheets_status,max_pdf_size,max_excel_size)
         else:
             logging.info ("RRRing {0}".format(os.path.join(subdir,file)))
             if file[-4:].upper()==".PDF":
-                process_pdf(os.path.join(subdir,file),rootdir,slipsheets_status)
+                process_pdf(os.path.join(subdir,file),rootdir,slipsheets_status,max_pdf_size,max_excel_size)
+        app.progress_bar["value"]=percentage
+        app.progress_bar.update()
+        app.progress_text["text"]="{0}%".format(round(percentage,2))
+        app.progress_text.update()
+        seconds_elapsed = time.time()-start_time
+        task_percentage = (percentage-50)*2
+        if task_percentage == 0:
+            task_percentage = 0.01
+        time_remaining = (100-task_percentage)/task_percentage*seconds_elapsed
+        app.progress_text2["text"]="Processing PDFs. {0} remaining.".format(time_as_string(int(time_remaining)))
+        app.progress_text2.update()
 def customwalk(rootdir):
     data = []
     tree = [rootdir]
@@ -416,36 +421,39 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
     start_time = time.time()
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
+            if file[-4:].upper()!=".PDF":
+                size_so_far+=os.path.getsize(os.path.join(subdir,file))
+                percentage = float(size_so_far)/float(total_size)*50
             try:
                 logging.info("Converting {0}".format(os.path.join(subdir,file)))
             except:
                 logging.info("Converting <NAME CANNOT BE DISPLAYED>.")
-            if file[-4:].upper()!=".PDF":
-                size_so_far+=os.path.getsize(os.path.join(subdir,file))
-                percentage = float(size_so_far)/float(total_size)*50
-                app.progress_bar["value"]=percentage
-                app.progress_bar.update()
-                app.progress_text["text"]="{0}%".format(round(percentage,2))
-                app.progress_text.update()
-                seconds_elapsed = time.time()-start_time
-                task_percentage = percentage*2
-                time_remaining = (100-task_percentage)/task_percentage*seconds_elapsed
-                app.progress_text2["text"]="Converting files to PDF format. {0} remaining.".format(time_as_string(int(time_remaining)))
-                app.progress_text2.update()
             if file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT" or file[-4:].upper()==".RTF":
                 process_doc(rootdir,os.path.join(subdir,file))
             elif file[-4:].upper()==".XLS" or file[-5:].upper()==".XLSX":
                 process_xls(rootdir,os.path.join(subdir,file),page_setup_settings)
             elif file[-4:].upper()==".TIF" or file[-4:].upper()==".JPG" or file[-5:].upper()==".TIFF" or file[-5:].upper()==".JPEG" or file[-4:].upper()==".PNG":
-                process_image(os.path.join(subdir,file))
+                process_image(os.path.join(subdir,file),rootdir)
             elif file[-4:].upper()==".PPT" or file[-5:].upper()==".PPTX":
-                process_ppt(os.path.join(subdir,file))
+                process_ppt(os.path.join(subdir,file),rootdir)
             # elif file[-4:].upper()==".PDF" and pdf_reprocess_status==1:
                 # reprocess_pdf(os.path.join(subdir,file))
             elif file[-4:].upper()==".PDF":
                 pass
             else:
                 process_misc(os.path.join(subdir,file))
+            if file[-4:].upper()!=".PDF":
+                app.progress_bar["value"]=percentage
+                app.progress_bar.update()
+                app.progress_text["text"]="{0}%".format(round(percentage,2))
+                app.progress_text.update()
+                seconds_elapsed = time.time()-start_time
+                task_percentage = percentage*2
+                if task_percentage == 0:
+                    task_percentage = 0.01
+                time_remaining = (100-task_percentage)/task_percentage*seconds_elapsed
+                app.progress_text2["text"]="Converting files to PDF format. {0} remaining.".format(time_as_string(int(time_remaining)))
+                app.progress_text2.update()
 # def reprocess_pdf(filename):
     # acrobat = comtypes.client.CreateObject('AcroExch.App')
     # acrobat.Hide()
@@ -460,17 +468,37 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
     # acrobat.CloseAllDocs()
     # acrobat.Exit()
     # os.remove(filename)
-def process_pdf(filename,rootdir,slipsheets_status):
-        pdf = PdfFileReader(filename,strict=False)
-        if pdf.isEncrypted:
-            logging.warning("ERROR: File encrypted - check PDF")
-            shutil.copy(filename,rootdir)
-            return
-        pdf_dest = PdfFileWriter()
-        if slipsheets_status==1:
-            add_slipsheet(pdf_dest,filename)
-        process_pdf_pages(pdf,pdf_dest)
-        pdf_write(pdf_dest,filename,rootdir)
+def process_pdf(filename,rootdir,slipsheets_status,max_pdf_size,max_excel_size):
+        try:
+            pdf = PdfFileReader(filename,strict=False)
+            if pdf.isEncrypted:
+                logging.warning("ERROR: File encrypted - check PDF")
+                copy_to_root(filename,rootdir)
+                return
+            pdf_dest = PdfFileWriter()
+            if slipsheets_status==1:
+                add_slipsheet(pdf_dest,filename)
+            if filename[-8:].upper()==".XLS.PDF" or filename[-9:].upper()==".XLSX.PDF":
+                max_size=max_excel_size
+            else:
+                max_size=max_pdf_size
+            process_pdf_pages(pdf,pdf_dest,max_size)
+            pdf_write(pdf_dest,filename,rootdir)
+        except:
+            print("ERROR PROCESSING PDF")
+            copy_to_root(filename,rootdir)
+def copy_to_root(filename,rootdir):
+    trash,temp = os.path.split(filename)
+    if os.path.exists(os.path.join(rootdir,temp))==False:
+        shutil.copy(filename,rootdir)
+    elif os.path.join(rootdir,temp)==filename:
+        pass
+    else:
+        i=2
+        while os.path.exists(os.path.join(roordir,"Copy {0} of ".format(i)+temp)):
+            i+=1
+        shutil.copy(filename,os.path.join(rootdir,"Copy {0} of ".format(i)+temp))
+    return
 def process_misc(filename):
     os.remove(filename)
     pdf_dest = PdfFileWriter()
@@ -546,7 +574,7 @@ def zip_found(rootdir):
     return_value = False
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
-            if file[-4:].upper()==".ZIP" or file[-4:].upper()==".MSG":
+            if file[-4:].upper()==".ZIP" or file[-4:].upper()==".MSG" or file[-4:].upper()==".EML":
                 return_value = True
     return return_value
 def process_zips(rootdir):
@@ -554,7 +582,7 @@ def process_zips(rootdir):
         for file in files:
             if file[-4:].upper()==".ZIP":
                 process_zip(subdir,file)
-            elif file[-4:].upper()==".MSG":
+            elif file[-4:].upper()==".MSG" or file[-4:].upper()==".EML":
                 process_msg(subdir,file)
 def process_zip(subdir,file):
     os.mkdir(os.path.join(subdir,file)+".dir")
@@ -696,71 +724,122 @@ def clean_string(input):
             output = output + letter    
     return output
 def process_doc(rootdir,filename):
-    word = comtypes.client.CreateObject('Word.Application')
-    word.Visible = False
-    doc = word.Documents.Open(filename)
-    doc.SaveAs(filename+".pdf",FileFormat=17)
-    doc.Close()
-    word.Quit()
-    os.remove(filename)
+    try:
+        word = comtypes.client.CreateObject('Word.Application')
+        word.Visible = False
+        doc = word.Documents.Open(filename)
+        doc.SaveAs(filename+".pdf",FileFormat=17)
+        doc.Close()
+        os.remove(filename)
+    except:
+        logging.info("FAILED TO PROCESS CORRUPT FILE")
+        copy_to_root(filename,rootdir)
+    finally:
+        word.Quit()
 def process_xls(rootdir,filename,page_setup_settings):
-    excel = comtypes.client.CreateObject('Excel.Application')
-    excel.Visible = False
-    xls = excel.Workbooks.Open(filename)
-    for i in xls.Sheets:
-        if i.Visible==-1:
-            i.Select(False)
-            if page_setup_settings!=None:
-                set_worksheet_page_setup_settings(page_setup_settings,i.PageSetup)
-    xls.SaveAs(filename+".pdf",FileFormat=57)
-    xls.Close(False)
-    excel.Quit()
-    os.remove(filename)
-def process_ppt(filename):
-    powerpoint = comtypes.client.CreateObject('PowerPoint.Application')
-    ppt = powerpoint.Presentations.Open(filename)
-    ppt.ExportAsFixedFormat(filename+".pdf",FixedFormatType=2)
-    ppt.Close()
-    powerpoint.Quit()
-    os.remove(filename)
-def process_image(filename):
+    try:
+        excel = comtypes.client.CreateObject('Excel.Application')
+        excel.Visible = False
+        xls = excel.Workbooks.Open(filename)
+        for i in xls.Sheets:
+            if i.Visible==-1:
+                i.Select(False)
+                if page_setup_settings!=None:
+                    set_worksheet_page_setup_settings(page_setup_settings,i.PageSetup)
+        xls.SaveAs(filename+".pdf",FileFormat=57)
+        xls.Close(False)
+        os.remove(filename)
+    except:
+        logging.info("FAILED TO PROCESS CORRUPT FILE")
+        copy_to_root(filename,rootdir)
+    finally:
+        excel.Quit()
+def process_ppt(filename,rootdir):
+    try:
+        powerpoint = comtypes.client.CreateObject('PowerPoint.Application')
+        ppt = powerpoint.Presentations.Open(filename)
+        ppt.ExportAsFixedFormat(filename+".pdf",FixedFormatType=2)
+        ppt.Close()
+        os.remove(filename)
+    except:
+        logging.info("FAILED TO PROCESS CORRUPT FILE")
+        copy_to_root(filename,rootdir)
+    finally:
+        powerpoint.Quit()
+def process_image(filename,rootdir):
     #image = PythonMagick.Image()
     #image.read(filename)
     #image.write(filename+".pdf")
     #ABOVE CODE IS UNTESTED BUT WILL PROBABLY DO THE TRICK INSTEAD OF THE FOLLOWING IF YOU DON'T HAVE ACROBAT PRO
-    acrobat = comtypes.client.CreateObject('AcroExch.App')
-    acrobat.Hide()
-    image = comtypes.client.CreateObject('AcroExch.AVDoc')
-    image.Open(filename,'temp')
-    image2 = image.GetPDDoc()
-    image2.Save(1,filename+".pdf")
-    acrobat.CloseAllDocs()
-    acrobat.Exit()
-    os.remove(filename)
+    try:
+        acrobat = comtypes.client.CreateObject('AcroExch.App')
+        acrobat.Hide()
+        image = comtypes.client.CreateObject('AcroExch.AVDoc')
+        image.Open(filename,'temp')
+        image2 = image.GetPDDoc()
+        image2.Save(1,filename+".pdf")
+        acrobat.CloseAllDocs()
+        os.remove(filename)
+    except:
+        logging.info("FAILED TO PROCESS CORRUPT FILE")
+        copy_to_root(filename,rootdir)
+    finally:
+        acrobat.Exit()
 def add_slipsheet(pdf_dest,text):
     slipsheet = pdf_dest.addBlankPage(8.5*72,11*72)
     packet = StringIO.StringIO()
     can = canvas.Canvas(packet, pagesize=letter)
     directory_path,base_filename = os.path.split(text)
-    can.drawCentredString(8.5*72/2,600,base_filename)
+    can.setFontSize(16)
+    draw_slipsheet_text(can,base_filename)
     can.save()
     packet.seek(0)
     slipsheet_overlay_pdf=PdfFileReader(packet)
     slipsheet_overlay_page=slipsheet_overlay_pdf.getPage(0)
     slipsheet.mergePage(slipsheet_overlay_page)
-
-def process_pdf_pages(pdf,pdf_dest):
-    numPages = pdf.getNumPages()        
+def draw_slipsheet_text(can,text):
+    if len(text)<66:
+        can.drawCentredString(8.5*72/2,600,text)
+    else:
+        position = 620
+        for line in split_into_lines(text,65):
+            position-=20
+            can.drawCentredString(8.5*72/2,position,line)
+def split_into_lines(text,length):
+    split_text = text.split(" ")
+    lines = []
+    while split_text!=[]:
+        lines.append(grab_line(split_text,length))
+    return lines
+def grab_line(text,length):
+    build_line = ""
+    while len(text)>0 and (len(build_line)+len(text[0])+1)<=length:
+        build_line+=" "+text[0]
+        text.remove(text[0])
+    if len(text)>0 and len(text[0])>length:
+        diff = length-len(build_line)-1
+        build_line+=" "+text[0][0:diff]
+        text[0]=text[0][diff:]
+    return build_line
+def process_pdf_pages(pdf,pdf_dest,max_size):
+    numPages = pdf.getNumPages()
+    if numPages>max_size:
+        numPages = max_size
+        truncate = True
+    else:
+        truncate = False
     for i in range(numPages):
         page = pdf.getPage(i)
         process_pdf_page(page)
         pdf_dest.addPage(page)
+    if truncate == True:
+        add_slipsheet(pdf_dest,"Document truncated due to size - see original file.")
 def pdf_write(pdf_dest,filename,rootdir):
     try:
         pdf_dest.write(io.open(filename,mode='w+b'))
     except:
         logging.warning ("ERROR: Could not write PDF - check PDF")
-        shutil.copy(filename,rootdir)
+        copy_to_root(filename,rootdir)
 def get_rotated_page_dimensions(page):
     a,b,c,d = page.mediaBox
     x = abs(c-a)
@@ -771,15 +850,18 @@ def get_rotated_page_dimensions(page):
         x=y
         y=temp
     return (x,y)
-def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status):
+def launch_main(sourcedir,destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status,max_pdf_size,max_excel_size):
     if sourcedir==None or destdir==None or tabdepth==None:
         print("One or more missing arguments. Exiting.")
         sys.exit()
     sourcedir = os.path.abspath(sourcedir)
     destdir = os.path.abspath(destdir)
-    os.rmdir(destdir)
-    shutil.copytree(sourcedir,destdir)
-    main(destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status)
+    #os.rmdir(destdir)
+    print("Copying files to destination directory...")
+    trash,temp = os.path.split(sourcedir)
+    shutil.copytree(sourcedir,os.path.join(destdir,temp))
+    #shutil.copytree(sourcedir,destdir)
+    main(destdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status,max_pdf_size,max_excel_size)
 def launch_gui():
     root = Tkinter.Tk()
     root.title("RRR")
@@ -795,6 +877,23 @@ class Application(Tkinter.Frame):
         self.dest_directory = ""
         self.page_setup_settings = None
         self.create_widgets()
+        self.source_directory = "C:/datasites/1"
+        self.dest_directory = "C:/datasites/2"
+        self.chosen_source["text"] = self.source_directory
+        self.chosen_dest["text"] = self.dest_directory
+        
+        self.excel = comtypes.client.CreateObject('Excel.Application')
+        self.excel.Visible = False
+        self.xls = self.excel.Workbooks.Add()
+        for i in self.xls.Sheets:
+            i.Select(False)
+        self.page_setup_settings = self.xls.Sheets(1).PageSetup
+        self.page_setup_settings.CenterHorizontally = True
+        self.page_setup_settings.FitToPagesTall = False
+        self.page_setup_settings.Orientation = 2.0
+        self.page_setup_settings.FitToPagesWide = 1
+        self.page_setup_settings.Zoom = False
+        self.page_setup_settings.PaperSize = 1.0
     def create_widgets(self):
         self.create_exit()
         self.create_start()
@@ -812,59 +911,79 @@ class Application(Tkinter.Frame):
         self.create_progress_text()
         self.create_progress_text2()
         self.create_flatten_checkbox()
+        self.create_max_size_text()
+        self.create_max_size_picker()
+        self.create_max_excel_size_text()
+        self.create_max_excel_size_picker()
+    def create_max_size_text(self):
+        self.max_size_text = Tkinter.Label(self)
+        self.max_size_text["text"] = "Maximum PDF Pages:"
+        self.max_size_text.grid(row=3,column=0)
+    def create_max_size_picker(self):
+        self.max_size_picker = Tkinter.Spinbox(self,from_=0,to=100000)
+        self.max_size_picker["value"] = 100000
+        self.max_size_picker.grid(row=3,column=1)
+    def create_max_excel_size_text(self):
+        self.max_excel_size_text = Tkinter.Label(self)
+        self.max_excel_size_text["text"] = "Maximum Excel Pages:"
+        self.max_excel_size_text.grid(row=4,column=0)
+    def create_max_excel_size_picker(self):
+        self.max_excel_size_picker = Tkinter.Spinbox(self,from_=0,to=100000)
+        self.max_excel_size_picker["value"] = 100000
+        self.max_excel_size_picker.grid(row=4,column=1)
     def create_flatten_checkbox(self):
         self.flatten_checkbox = Tkinter.Checkbutton(self)
         self.flatten_checkbox["text"] = "Flatten directory"
         self.flatten_checkbox_value = Tkinter.IntVar()
         self.flatten_checkbox["variable"] = self.flatten_checkbox_value
-        self.flatten_checkbox.grid(row=5,column=1)
+        self.flatten_checkbox.grid(row=7,column=1)
     def create_progress_text(self):
         self.progress_text = Tkinter.Label(self)
         self.progress_text["text"] = "0%"
-        self.progress_text.grid(row=8,column=0,columnspan=2)
+        self.progress_text.grid(row=10,column=0,columnspan=2)
     def create_progress_text2(self):
         self.progress_text2 = Tkinter.Label(self)
         self.progress_text2["text"] = "Ready!"
-        self.progress_text2.grid(row=9,column=0,columnspan=2)
+        self.progress_text2.grid(row=11,column=0,columnspan=2)
     def create_progress_bar(self):
         self.progress_bar = ttk.Progressbar(self)
         self.progress_bar["length"] = 250
         self.progress_bar["value"] = 0
-        self.progress_bar.grid(row=7,column=0,columnspan=2,pady=4)
+        self.progress_bar.grid(row=9,column=0,columnspan=2,pady=4)
     def create_pdf_reprocess_checkbox(self):
         self.pdf_reprocess_checkbox = Tkinter.Checkbutton(self)
         # self.pdf_reprocess_checkbox["text"] = "Run all PDFs through Adobe before processing"
         self.pdf_reprocess_checkbox["text"] = "DISABLED OPTION"
         self.pdf_reprocess_checkbox_value = Tkinter.IntVar()
         self.pdf_reprocess_checkbox["variable"] = self.pdf_reprocess_checkbox_value
-        self.pdf_reprocess_checkbox.grid(row=3,column=1)
+        self.pdf_reprocess_checkbox.grid(row=7,column=0)
     def create_numbering_checkbox(self):
         self.numbering_checkbox = Tkinter.Checkbutton(self)
         self.numbering_checkbox["text"] = "Number files"
         self.numbering_checkbox_value = Tkinter.IntVar()
         self.numbering_checkbox["variable"] = self.numbering_checkbox_value
-        self.numbering_checkbox.grid(row=4,column=1)
+        self.numbering_checkbox.grid(row=6,column=1)
     def create_slipsheets_checkbox(self):
         self.slipsheets_checkbox = Tkinter.Checkbutton(self)
         self.slipsheets_checkbox["text"] = "Slipsheets"
         self.slipsheets_checkbox_value = Tkinter.IntVar()
         self.slipsheets_checkbox["variable"] = self.slipsheets_checkbox_value
-        self.slipsheets_checkbox.grid(row=4,column=0)
+        self.slipsheets_checkbox.grid(row=6,column=0)
     def create_page_setup_button(self):
         self.page_setup = Tkinter.Button(self)
         self.page_setup["text"] = "Excel Page Setup"
         self.page_setup["command"] = self.excel_page_setup
-        self.page_setup.grid(row=3,column=0)
+        self.page_setup.grid(row=5,column=0)
     def create_exit(self):
         self.exit = Tkinter.Button(self)
         self.exit["text"] = "Exit"
         self.exit["command"] = self.quit
-        self.exit.grid(row=6,column=1)
+        self.exit.grid(row=8,column=1)
     def create_start(self):
         self.start_button = Tkinter.Button(self)
         self.start_button["text"] = "Start"
         self.start_button["command"] = self.start
-        self.start_button.grid(row=6,column=0)
+        self.start_button.grid(row=8,column=0)
     def create_choose_source(self):
         self.choose_source = Tkinter.Button(self)
         self.choose_source["text"] = "Source Directory:"
@@ -891,10 +1010,10 @@ class Application(Tkinter.Frame):
         self.tab_depth_picker = Tkinter.Spinbox(self,from_=0,to=10000)
         self.tab_depth_picker.grid(row=2,column=1)
     def source_directory_select(self):
-        self.source_directory = tkFileDialog.askdirectory(initialdir = os.getcwd(), title = "Choose Source Directory", mustexist=True)
+        self.source_directory = tkFileDialog.askdirectory(initialdir = "C:/", title = "Choose Source Directory", mustexist=True)
         self.chosen_source["text"] = self.source_directory
     def dest_directory_select(self):
-        self.dest_directory = tkFileDialog.askdirectory(initialdir = os.getcwd(), title = "Choose Destination Directory", mustexist=True)
+        self.dest_directory = tkFileDialog.askdirectory(initialdir = "C:/", title = "Choose Destination Directory", mustexist=True)
         self.chosen_dest["text"] = self.dest_directory
     def start(self):
         if self.source_directory==None or self.dest_directory==None or self.tab_depth_picker.get()==None or self.source_directory=="" or self.dest_directory=="" or self.tab_depth_picker.get()=="":
@@ -906,7 +1025,7 @@ class Application(Tkinter.Frame):
         elif self.source_directory==self.dest_directory:
             tkMessageBox.showerror("Error","Source and destination directories cannot be the same.")
         else:
-            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.pdf_reprocess_checkbox_value.get(),self.numbering_checkbox_value.get(),self.slipsheets_checkbox_value.get(),self.flatten_checkbox_value.get())
+            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.pdf_reprocess_checkbox_value.get(),self.numbering_checkbox_value.get(),self.slipsheets_checkbox_value.get(),self.flatten_checkbox_value.get(),int(self.max_size_picker.get()),int(self.max_excel_size_picker.get()))
     def excel_page_setup(self):
         excel = comtypes.client.CreateObject('Excel.Application')
         excel.Visible = False
@@ -929,6 +1048,7 @@ def set_worksheet_page_setup_settings(source,dest):
     dest.Draft = source.Draft
     dest.FirstPageNumber = source.FirstPageNumber
     dest.FitToPagesTall = source.FitToPagesTall
+    dest.FitToPagesWide = source.FitToPagesWide
     dest.FooterMargin = source.FooterMargin
     dest.HeaderMargin = source.HeaderMargin
     dest.LeftFooter = source.LeftFooter
