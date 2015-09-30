@@ -21,7 +21,7 @@ Usage:
 Options:
     -h --help               Show this screen
 """
-import os,io,zipfile,sys,comtypes.client,email,mimetypes,olefile,shutil,time,StringIO
+import os,io,zipfile,sys,comtypes.client,email,mimetypes,olefile,shutil,time,StringIO,re,string
 import logging,Tkinter,tkFileDialog,tkMessageBox,copy,sys,ttk
 from natsort import natsorted
 from PyPDF2 import PdfFileReader,PdfFileWriter
@@ -30,6 +30,8 @@ from reportlab.lib.pagesizes import letter
 from operator import itemgetter
 
 def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status,max_pdf_size,max_excel_size):
+    global files_to_remove
+    files_to_remove = []
     reload(sys)
     sys.setdefaultencoding('utf8')
     logging.basicConfig(filename='rrrlog.txt',level=logging.INFO)
@@ -428,8 +430,11 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
                 logging.info("Converting {0}".format(os.path.join(subdir,file)))
             except:
                 logging.info("Converting <NAME CANNOT BE DISPLAYED>.")
-            if file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT" or file[-4:].upper()==".RTF":
+            if file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT" or file[-4:].upper()==".RTF" or file[-5:].upper()==".HTML":
                 process_doc(rootdir,os.path.join(subdir,file))
+                shortened = name_with_first_extension(file)
+                if os.path.isdir(os.path.join(subdir,shortened)+'_files'):
+                    shutil.rmtree(os.path.join(subdir,shortened)+'_files')
             elif file[-4:].upper()==".XLS" or file[-5:].upper()==".XLSX":
                 process_xls(rootdir,os.path.join(subdir,file),page_setup_settings)
             elif file[-4:].upper()==".TIF" or file[-4:].upper()==".JPG" or file[-5:].upper()==".TIFF" or file[-5:].upper()==".JPEG" or file[-4:].upper()==".PNG":
@@ -454,6 +459,11 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
                 time_remaining = (100-task_percentage)/task_percentage*seconds_elapsed
                 app.progress_text2["text"]="Converting files to PDF format. {0} remaining.".format(time_as_string(int(time_remaining)))
                 app.progress_text2.update()
+    for file in files_to_remove:
+        os.remove(file+".pdf")
+def name_with_first_extension(name):
+    parts = name.split('.')
+    return parts[0]+'.'+parts[1]
 # def reprocess_pdf(filename):
     # acrobat = comtypes.client.CreateObject('AcroExch.App')
     # acrobat.Hide()
@@ -673,19 +683,214 @@ def write_msg_attachment(index,ole,subdir,file,filename):
                     fp.close()
                 except:
                     pass
+# def (ole,subdir,file):
+    # msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data(ole)
+    # fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","00 {0}.txt".format(file)),"w")
+    # try:
+        # fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('utf-8'))
+    # except:
+        # fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('ISO-8859-1'))
+    # fp.write(unicode("---------------\n\n"))
+    # try:
+        # fp.write(msg_body.decode('utf-8'))
+    # except:
+        # fp.write(msg_body.decode('ISO-8859-1'))
+    # fp.close()
 def extract_msg_message(ole,subdir,file):
-    msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data(ole)    
-    fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","00 {0}.txt".format(file)),"w")
-    try:
-        fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('utf-8'))
-    except:
-        fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('ISO-8859-1'))
-    fp.write(unicode("---------------\n\n"))
-    try:
-        fp.write(msg_body.decode('utf-8'))
-    except:
-        fp.write(msg_body.decode('ISO-8859-1'))
+    msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data(ole)
+    msg_body = extract_msg_unpack_rtf(msg_body)
+    msg_body = extract_msg_unpack_html(msg_body)
+    offset = string.find(msg_body,'<body')
+    offset = string.find(msg_body,'>',offset)+1
+    msg_body = msg_body[:offset]+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>From:</b> {0}</span></p>\n'.format(msg_from)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>To:</b> {0}</span></p>\n'.format(msg_to)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>CC:</b> {0}</span></p>\n'.format(msg_cc)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>Subject:</b> {0}</span></p>\n'.format(msg_subject)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>Header:</b> {0}</span></p>\n<br><br>'.format(msg_header)+msg_body[offset:]
+    fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","00 {0}.html".format(file)),"wb")
+    fp.write(msg_body)
     fp.close()
+    for attachment in get_html_attachments(msg_body):
+        files_to_remove.append(os.path.join(subdir,file+".dir",attachment))
+def get_html_attachments(html):
+    indices = [m.start() for m in re.finditer('<img',html)]
+    values = []
+    for index in indices:
+        start = string.find(html,'src="',index)+5
+        stop = string.find(html,'"',start)
+        values.append(html[start:stop])
+    return values
+def extract_msg_unpack_html(source):
+    output = ''
+    if '\\fromhtml1' not in source:
+        return
+    position = 0
+    escape_character=False
+    group = -1
+    font_group = 9999
+    htmlrtf = False
+    strip_cid_tag = False
+    while position<len(source):
+        to_write=True
+        if escape_character==True:
+            to_write=True
+            escape_character=False
+        elif source[position]=='\\':
+            to_write=False
+            token,number,position = get_token(source,position)
+            if token=='':
+                escape_character=True
+            if token=='par':
+                output+=u'\n'
+            if token=='tab':
+                output+=u'\t'
+            if token=='fonttbl' or token=='colortbl':
+                font_group = group
+            if token=='htmlrtf' and number==None:
+                htmlrtf=True
+            elif token=='htmlrtf' and number==0:
+                htmlrtf=False
+        elif htmlrtf==True:
+            to_write=False
+        elif source[position]=='{':
+            to_write=False
+            group +=1
+        elif source[position]=='}':
+            to_write=False
+            group -=1
+            if font_group>group:
+                font_group=9999
+        elif font_group<=group:
+            to_write=False
+        elif source[position]=='s' and source[position:position+9]=='src="cid:':
+            output+='src="'
+            position+=9
+            strip_cid_tag = True
+        elif source[position]=='@' and strip_cid_tag==True:
+            while source[position]!='"':
+                position+=1
+            strip_cid_tag=False
+        if to_write==True:
+            output+=source[position]
+        position+=1
+    return output
+def get_token(source,position):
+    value = ''
+    numeric_value=False
+    position+=1
+    while source[position] in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ*\'':
+        value+=source[position]
+        position+=1
+        if value=='*' and source[position]=='\\':
+            value=''
+            position+=1
+        if position>=len(source):
+            break
+    if source[position] in '1234567890-':
+        while source[position] in '1234567890-':
+            if numeric_value==False:
+                numeric_value=source[position]
+            else:
+                numeric_value+=source[position]
+            position+=1
+            if position>=len(source):
+                break
+    if numeric_value!=False:
+        numeric_value = int(numeric_value)
+    else:
+        numeric_value=None
+    return (value,numeric_value,position-1)
+def extract_msg_unpack_rtf(text):
+    output = ''
+    control=True
+    control_number=0
+    controls = [None,None,None,None,None,None,None,None]
+    dictionary=list('{\\rtf1\\ansi\\mac\\deff0\\deftab720{\\fonttbl;}{\\f0\\fnil \\froman \\fswiss \\fmodern \\fscript \\fdecor MS Sans SerifSymbolArialTimes New RomanCourier{\\colortbl\\red0\\green0\\blue0\x0d\x0a\\par \\pard\\plain\\f0\\fs20\\b\\i\\u\\tab\\tx')
+    dictionary_write_offset=len(dictionary)
+    end_offset=len(dictionary)
+    for i in range(4096-len(dictionary)):
+        dictionary.append('')
+    pos=16
+    while pos<len(text):
+        char = text[pos]
+        if control==True:
+            control=False
+            control_number=-1
+            controls = extract_bits(char)
+        elif control==False:
+            control_number+=1
+            if control_number==8:
+                control=True
+                continue
+            else:
+                if controls[control_number]==0:
+                    output+=char
+                    dictionary[dictionary_write_offset]=char
+                    dictionary_write_offset+=1
+                    if end_offset<4096:
+                        end_offset+=1
+                    if dictionary_write_offset>=4096:
+                        dictionary_write_offset=0
+                elif controls[control_number]==1:
+                    offset,num_bytes = extract_dictionary_offset(text[pos:pos+2])
+                    if offset==dictionary_write_offset:
+                        break
+                    dictionary_output = extract_dictionary_text(offset,num_bytes,dictionary,end_offset)
+                    for char in dictionary_output:
+                        dictionary[dictionary_write_offset]=char
+                        dictionary_write_offset+=1
+                        if end_offset<4096:
+                            end_offset+=1
+                        if dictionary_write_offset>=4096:
+                            dictionary_write_offset=0
+                    output+=dictionary_output
+                    pos+=1
+        pos+=1
+    return output
+def extract_dictionary_offset(input):
+    bits1 = extract_bits(input[0],big_endian=True)
+    bits2 = extract_bits(input[1],big_endian=True)
+    offset = generate_dictionary_offset(bits1,bits2)
+    num_bytes = generate_dictionary_length(bits2)
+    return offset,num_bytes
+def extract_bits(char,big_endian=False):
+    if big_endian==False:
+        start_position=7
+        end_position=-1
+        direction=-1
+    else:
+        start_position=0
+        end_position=8
+        direction=1
+    bm = [0b10000000,0b01000000,0b00100000,0b00010000,0b00001000,0b00000100,0b00000010,0b00000001]
+    bits = []
+    for offset in range(start_position,end_position,direction):
+        bits.append((bm[offset]&ord(char))>>(7-offset))
+    return bits
+def generate_dictionary_offset(input1,input2):
+    a = 2048
+    result=0
+    for bit in input1:
+        result+=(bit*a)
+        a/=2
+    for i in range(0,4):
+        result+=(input2[i]*a)
+        a/=2
+    return result
+def generate_dictionary_length(input2):
+    a = 8
+    result=0
+    for i in range(4,8):
+        result+=(input2[i]*a)
+        a/=2
+    return result+2
+def extract_dictionary_text(offset,num_bytes,dictionary,end_offset):
+    output=''
+    for i in range(num_bytes):
+        output+=dictionary[circle(offset+i,end_offset)]
+    return output
+def circle(offset,length):
+    if offset<length:
+        return offset
+    while offset>=length:
+        offset-=length
+    return offset
 def extract_msg_message_data(ole):
     msg_from=""
     msg_to=""
@@ -704,13 +909,19 @@ def extract_msg_message_data(ole):
             msg_subject = extract_msg_stream_text(i,ole)
         elif i[0][:16]=="__substg1.0_007D":
             msg_header = extract_msg_stream_text(i,ole)
-        elif i[0][:16]=="__substg1.0_1000":
-            msg_body = extract_msg_stream_text(i,ole)
+        # elif i[0][:16]=="__substg1.0_1000":
+            # msg_body = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_1009":
+            msg_body = extract_msg_stream_text_noclean(i,ole)
     return (msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body)
 def extract_msg_stream_text(index,ole):
     stream = ole.openstream(index[0])
     text = stream.read()
     text = clean_string(text)
+    return text
+def extract_msg_stream_text_noclean(index,ole):
+    stream = ole.openstream(index[0])
+    text = stream.read()
     return text
 def clean_string(input):
     output = ""
