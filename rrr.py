@@ -421,6 +421,8 @@ def convert_to_pdf(rootdir,page_setup_settings):
     total_size = get_size_without_pdfs(rootdir)
     size_so_far=0
     start_time = time.time()
+    for i in range(len(files_to_remove)):
+        files_to_remove[i] = files_to_remove[i].upper()
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
             if file[-4:].upper()!=".PDF":
@@ -430,7 +432,9 @@ def convert_to_pdf(rootdir,page_setup_settings):
                 logging.info("Converting {0}".format(os.path.join(subdir,file)))
             except:
                 logging.info("Converting <NAME CANNOT BE DISPLAYED>.")
-            if file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT" or file[-4:].upper()==".RTF" or file[-5:].upper()==".HTML":
+            if os.path.join(subdir,file).upper() in files_to_remove:
+                pass
+            elif file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT" or file[-4:].upper()==".RTF" or file[-5:].upper()==".HTML":
                 process_doc(rootdir,os.path.join(subdir,file))
                 shortened = name_with_first_extension(file)
                 if os.path.isdir(os.path.join(subdir,shortened)+'_files'):
@@ -461,7 +465,7 @@ def convert_to_pdf(rootdir,page_setup_settings):
                 app.progress_text2.update()
     for file in files_to_remove:
         try:
-            os.remove(file+".pdf")
+            os.remove(file)
         except:
             pass
 def name_with_first_extension(name):
@@ -508,7 +512,7 @@ def copy_to_root(filename,rootdir):
         pass
     else:
         i=2
-        while os.path.exists(os.path.join(roordir,"Copy {0} of ".format(i)+temp)):
+        while os.path.exists(os.path.join(rootdir,"Copy {0} of ".format(i)+temp)):
             i+=1
         shutil.copy(filename,os.path.join(rootdir,"Copy {0} of ".format(i)+temp))
     return
@@ -704,8 +708,14 @@ def extract_msg_message_plaintext(ole,subdir,file):
     fp.close()
 def extract_msg_message(ole,subdir,file):
     msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data(ole)
+    if msg_body=='' or msg_body==None:
+        extract_msg_message_plaintext(ole,subdir,file)
+        return
     msg_body = extract_msg_unpack_rtf(msg_body)
     msg_body = extract_msg_unpack_html(msg_body)
+    if msg_body=='' or msg_body==None:
+        extract_msg_message_plaintext(ole,subdir,file)
+        return
     offset = string.find(msg_body,'<body')
     offset = string.find(msg_body,'>',offset)+1
     msg_body = msg_body[:offset]+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>From:</b> {0}</span></p>\n'.format(msg_from)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>To:</b> {0}</span></p>\n'.format(msg_to)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>CC:</b> {0}</span></p>\n'.format(msg_cc)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>Subject:</b> {0}</span></p>\n'.format(msg_subject)+msg_body[offset:]
@@ -714,11 +724,27 @@ def extract_msg_message(ole,subdir,file):
     if '<html' not in msg_body:
         msg_body = '<html>'+msg_body+'</html>'
     fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","00 {0}.html".format(file)),"wb")
+    msg_body = clean_html_attachments(os.path.join(subdir,file)+'.dir',msg_body)
     fp.write(msg_body)
     fp.close()
     for attachment in get_html_attachments(msg_body):
         if attachment[:6]!='http:/':
             files_to_remove.append(os.path.join(subdir,file+".dir",attachment))
+def clean_html_attachments(subdir,html):
+    i=0
+    for attachment in get_html_attachments(html):
+        i+=1
+        if attachment[:6]!='http:/':
+            if not os.path.exists(os.path.join(subdir,attachment)):
+                prefix = 'ATT{0:05d}.'.format(i)
+                name = ''
+                for suffix in ['jpg', 'jpeg', 'png', 'gif', 'tif', 'tiff', 'bmp', 'JPG', 'JPEG', 'PNG', 'GIF', 'TIF', 'TIFF', 'BMP']:
+                    if os.path.exists(os.path.join(subdir,prefix+suffix)):
+                        name=prefix+suffix
+                if name!='':
+                    html = html.replace('src="'+attachment+'"','src="'+name+'"',1)
+    return html
+    
 def get_html_attachments(html):
     indices = [m.start() for m in re.finditer('<img',html)]
     values = []
@@ -742,6 +768,8 @@ def extract_msg_unpack_html(source):
         if escape_character==True:
             to_write=True
             escape_character=False
+        elif source[position]=='\r' or source[position]=='\n':
+            to_write=False
         elif source[position]=='\\':
             to_write=False
             token,number,position = get_token(source,position)
@@ -751,6 +779,10 @@ def extract_msg_unpack_html(source):
                 output+=u'\n'
             if token=='tab':
                 output+=u'\t'
+            if token=="'":
+                if number!=False:
+                    if htmlrtf==False:
+                        output+='&#'+str(int(number,16))+';'
             if token=='fonttbl' or token=='colortbl':
                 font_group = group
             if token=='htmlrtf' and number==None:
@@ -785,16 +817,31 @@ def get_token(source,position):
     value = ''
     numeric_value=False
     position+=1
-    while source[position] in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ*\'':
+    while source[position] in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ*\'-':
         value+=source[position]
         position+=1
+        if value=="'":
+            if source[position] in '1234567890ABCDEFabcdef' and source[position+1] in '1234567890ABCDEFabcdef':
+                for i in range(2):
+                    if numeric_value==False:
+                        numeric_value=source[position]
+                    else:
+                        numeric_value+=source[position]
+                    position+=1
+                    if position>=len(source):
+                        if source[position]==' ':
+                            position+=1
+                        return (value,numeric_value,position-1)
+            if source[position]==' ':
+                position+=1
+            return (value,numeric_value,position-1)
         if value=='*' and source[position]=='\\':
             value=''
             position+=1
         if position>=len(source):
             break
-    if source[position] in '1234567890-':
-        while source[position] in '1234567890-':
+    if source[position] in '1234567890':
+        while source[position] in '1234567890':
             if numeric_value==False:
                 numeric_value=source[position]
             else:
@@ -802,13 +849,12 @@ def get_token(source,position):
             position+=1
             if position>=len(source):
                 break
-    if numeric_value=='-':
-        numeric_value=False
-        position-=1
     if numeric_value!=False:
         numeric_value = int(numeric_value)
     else:
         numeric_value=None
+    if source[position]==' ':
+        position+=1
     return (value,numeric_value,position-1)
 def extract_msg_unpack_rtf(text):
     output = ''
