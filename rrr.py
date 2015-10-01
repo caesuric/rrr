@@ -29,7 +29,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from operator import itemgetter
 
-def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_status,slipsheets_status,flatten_status,max_pdf_size,max_excel_size):
+def main (rootdir,tabdepth,page_setup_settings,email_formatting_status,numbering_status,slipsheets_status,flatten_status,max_pdf_size,max_excel_size):
     global files_to_remove
     files_to_remove = []
     reload(sys)
@@ -38,9 +38,9 @@ def main (rootdir,tabdepth,page_setup_settings,pdf_reprocess_status,numbering_st
     console = logging.StreamHandler()
     console.setLevel(logging.DEBUG)
     logging.getLogger('').addHandler(console)
-    unzip(rootdir)
+    unzip(rootdir,email_formatting_status)
     add_directory_slipsheets(rootdir,tabdepth)
-    convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status)
+    convert_to_pdf(rootdir,page_setup_settings)
     app.progress_bar["value"] = 50
     app.progress_bar.update()
     rename_resize_rotate(rootdir,numbering_status,slipsheets_status,tabdepth,max_pdf_size,max_excel_size)
@@ -70,9 +70,9 @@ def flatten(rootdir):
         for dir in dirs:
             shutil.rmtree(os.path.join(subdir,dir))
         break
-def unzip (rootdir):
+def unzip (rootdir,email_formatting_status):
     while (zip_found(rootdir)):
-        process_zips(rootdir)
+        process_zips(rootdir,email_formatting_status)
 def add_directory_slipsheets (rootdir,tabdepth):
     tabdepth+=rootdir.count(os.path.sep)-1
     for subdir,dirs,files in os.walk(rootdir):
@@ -417,7 +417,7 @@ def time_as_string(seconds):
         value+="{0:02d}m".format(m)
     value+="{0:02d}s".format(s)
     return value
-def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
+def convert_to_pdf(rootdir,page_setup_settings):
     total_size = get_size_without_pdfs(rootdir)
     size_so_far=0
     start_time = time.time()
@@ -460,7 +460,10 @@ def convert_to_pdf(rootdir,page_setup_settings,pdf_reprocess_status):
                 app.progress_text2["text"]="Converting files to PDF format. {0} remaining.".format(time_as_string(int(time_remaining)))
                 app.progress_text2.update()
     for file in files_to_remove:
-        os.remove(file+".pdf")
+        try:
+            os.remove(file+".pdf")
+        except:
+            pass
 def name_with_first_extension(name):
     parts = name.split('.')
     return parts[0]+'.'+parts[1]
@@ -587,13 +590,13 @@ def zip_found(rootdir):
             if file[-4:].upper()==".ZIP" or file[-4:].upper()==".MSG" or file[-4:].upper()==".EML":
                 return_value = True
     return return_value
-def process_zips(rootdir):
+def process_zips(rootdir,email_formatting_status):
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
             if file[-4:].upper()==".ZIP":
                 process_zip(subdir,file)
             elif file[-4:].upper()==".MSG" or file[-4:].upper()==".EML":
-                process_msg(subdir,file)
+                process_msg(subdir,file,email_formatting_status)
 def process_zip(subdir,file):
     os.mkdir(os.path.join(subdir,file)+".dir")
     zip = zipfile.ZipFile(os.path.join(subdir,file))
@@ -626,7 +629,7 @@ def generate_mime_msg_section_filename(part,counter):
         ext = ".bin"
     filename = "part-{0:03d}{1}".format(counter,ext)
     return filename
-def process_msg(subdir,file):
+def process_msg(subdir,file,email_formatting_status):
     if olefile.isOleFile(os.path.join(subdir,file))==False:
         process_mime_msg(subdir,file)
         return
@@ -634,7 +637,10 @@ def process_msg(subdir,file):
     ole = olefile.OleFileIO(os.path.join(subdir,file))
     attach_list = get_msg_attach_list(ole)
     extract_msg_files(attach_list,ole,subdir,file)
-    extract_msg_message(ole,subdir,file)
+    if email_formatting_status==1:
+        extract_msg_message(ole,subdir,file)
+    else:
+        extract_msg_message_plaintext(ole,subdir,file)
     ole.close()
     os.remove(os.path.join(subdir,file))
 def get_msg_attach_list(ole):
@@ -683,31 +689,36 @@ def write_msg_attachment(index,ole,subdir,file,filename):
                     fp.close()
                 except:
                     pass
-# def (ole,subdir,file):
-    # msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data(ole)
-    # fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","00 {0}.txt".format(file)),"w")
-    # try:
-        # fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('utf-8'))
-    # except:
-        # fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('ISO-8859-1'))
-    # fp.write(unicode("---------------\n\n"))
-    # try:
-        # fp.write(msg_body.decode('utf-8'))
-    # except:
-        # fp.write(msg_body.decode('ISO-8859-1'))
-    # fp.close()
+def extract_msg_message_plaintext(ole,subdir,file):
+    msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data_plaintext(ole)
+    fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","00 {0}.txt".format(file)),"w")
+    try:
+        fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('utf-8'))
+    except:
+        fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('ISO-8859-1'))
+    fp.write(unicode("---------------\n\n"))
+    try:
+        fp.write(msg_body.decode('utf-8'))
+    except:
+        fp.write(msg_body.decode('ISO-8859-1'))
+    fp.close()
 def extract_msg_message(ole,subdir,file):
     msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data(ole)
     msg_body = extract_msg_unpack_rtf(msg_body)
     msg_body = extract_msg_unpack_html(msg_body)
     offset = string.find(msg_body,'<body')
     offset = string.find(msg_body,'>',offset)+1
-    msg_body = msg_body[:offset]+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>From:</b> {0}</span></p>\n'.format(msg_from)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>To:</b> {0}</span></p>\n'.format(msg_to)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>CC:</b> {0}</span></p>\n'.format(msg_cc)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>Subject:</b> {0}</span></p>\n'.format(msg_subject)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>Header:</b> {0}</span></p>\n<br><br>'.format(msg_header)+msg_body[offset:]
+    msg_body = msg_body[:offset]+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>From:</b> {0}</span></p>\n'.format(msg_from)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>To:</b> {0}</span></p>\n'.format(msg_to)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>CC:</b> {0}</span></p>\n'.format(msg_cc)+'<p class=MsoNormal><span style=\'font-size:10.0pt;font-family:"Tahoma","sans-serif"\'><b>Subject:</b> {0}</span></p>\n'.format(msg_subject)+msg_body[offset:]
+    if '<body' not in msg_body:
+        msg_body = '<body>'+msg_body+'</body>'
+    if '<html' not in msg_body:
+        msg_body = '<html>'+msg_body+'</html>'
     fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","00 {0}.html".format(file)),"wb")
     fp.write(msg_body)
     fp.close()
     for attachment in get_html_attachments(msg_body):
-        files_to_remove.append(os.path.join(subdir,file+".dir",attachment))
+        if attachment[:6]!='http:/':
+            files_to_remove.append(os.path.join(subdir,file+".dir",attachment))
 def get_html_attachments(html):
     indices = [m.start() for m in re.finditer('<img',html)]
     values = []
@@ -791,6 +802,9 @@ def get_token(source,position):
             position+=1
             if position>=len(source):
                 break
+    if numeric_value=='-':
+        numeric_value=False
+        position-=1
     if numeric_value!=False:
         numeric_value = int(numeric_value)
     else:
@@ -909,10 +923,29 @@ def extract_msg_message_data(ole):
             msg_subject = extract_msg_stream_text(i,ole)
         elif i[0][:16]=="__substg1.0_007D":
             msg_header = extract_msg_stream_text(i,ole)
-        # elif i[0][:16]=="__substg1.0_1000":
-            # msg_body = extract_msg_stream_text(i,ole)
         elif i[0][:16]=="__substg1.0_1009":
             msg_body = extract_msg_stream_text_noclean(i,ole)
+    return (msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body)
+def extract_msg_message_data_plaintext(ole):
+    msg_from=""
+    msg_to=""
+    msg_cc=""
+    msg_subject=""
+    msg_header=""
+    msg_body=""
+    for i in ole.listdir():
+        if i[0][:16]=="__substg1.0_0C1A":
+            msg_from = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_0E04":
+            msg_to = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_0E03":
+            msg_cc = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_0037":
+            msg_subject = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_007D":
+            msg_header = extract_msg_stream_text(i,ole)
+        elif i[0][:16]=="__substg1.0_1000":
+            msg_body = extract_msg_stream_text(i,ole)
     return (msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body)
 def extract_msg_stream_text(index,ole):
     stream = ole.openstream(index[0])
@@ -995,7 +1028,10 @@ def process_image(filename,rootdir):
         logging.info("FAILED TO PROCESS CORRUPT FILE")
         copy_to_root(filename,rootdir)
     finally:
-        acrobat.Exit()
+        try:
+            acrobat.Exit()
+        except:
+            pass
 def add_slipsheet(pdf_dest,text):
     slipsheet = pdf_dest.addBlankPage(8.5*72,11*72)
     packet = StringIO.StringIO()
@@ -1115,7 +1151,7 @@ class Application(Tkinter.Frame):
         self.create_tab_depth_text()
         self.create_tab_depth_picker()
         self.create_page_setup_button()
-        self.create_pdf_reprocess_checkbox()
+        self.create_email_formatting_checkbox()
         self.create_numbering_checkbox()
         self.create_slipsheets_checkbox()
         self.create_progress_bar()
@@ -1161,13 +1197,12 @@ class Application(Tkinter.Frame):
         self.progress_bar["length"] = 250
         self.progress_bar["value"] = 0
         self.progress_bar.grid(row=9,column=0,columnspan=2,pady=4)
-    def create_pdf_reprocess_checkbox(self):
-        self.pdf_reprocess_checkbox = Tkinter.Checkbutton(self)
-        # self.pdf_reprocess_checkbox["text"] = "Run all PDFs through Adobe before processing"
-        self.pdf_reprocess_checkbox["text"] = "DISABLED OPTION"
-        self.pdf_reprocess_checkbox_value = Tkinter.IntVar()
-        self.pdf_reprocess_checkbox["variable"] = self.pdf_reprocess_checkbox_value
-        self.pdf_reprocess_checkbox.grid(row=7,column=0)
+    def create_email_formatting_checkbox(self):
+        self.email_formatting_checkbox = Tkinter.Checkbutton(self)
+        self.email_formatting_checkbox["text"] = "Format emails (BETA)"
+        self.email_formatting_checkbox_value = Tkinter.IntVar()
+        self.email_formatting_checkbox["variable"] = self.email_formatting_checkbox_value
+        self.email_formatting_checkbox.grid(row=7,column=0)
     def create_numbering_checkbox(self):
         self.numbering_checkbox = Tkinter.Checkbutton(self)
         self.numbering_checkbox["text"] = "Number files"
@@ -1236,7 +1271,7 @@ class Application(Tkinter.Frame):
         elif self.source_directory==self.dest_directory:
             tkMessageBox.showerror("Error","Source and destination directories cannot be the same.")
         else:
-            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.pdf_reprocess_checkbox_value.get(),self.numbering_checkbox_value.get(),self.slipsheets_checkbox_value.get(),self.flatten_checkbox_value.get(),int(self.max_size_picker.get()),int(self.max_excel_size_picker.get()))
+            launch_main(self.source_directory,self.dest_directory,int(self.tab_depth_picker.get()),self.page_setup_settings,self.email_formatting_checkbox_value.get(),self.numbering_checkbox_value.get(),self.slipsheets_checkbox_value.get(),self.flatten_checkbox_value.get(),int(self.max_size_picker.get()),int(self.max_excel_size_picker.get()))
     def excel_page_setup(self):
         excel = comtypes.client.CreateObject('Excel.Application')
         excel.Visible = False
