@@ -14,7 +14,7 @@ class TestUnzip(unittest.TestCase):
     def tearDown(self):
         os.rmdir(self.a)
     def test_unzips_a_single_zip_file(self):
-        rrr.unzip(self.a)
+        rrr.unzip(self.a,1)
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","rrr.py")))
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf")))
         os.remove(os.path.join(self.a,"test_zip.zip.dir","rrr.py"))
@@ -22,7 +22,7 @@ class TestUnzip(unittest.TestCase):
         os.rmdir(os.path.join(self.a,"test_zip.zip.dir"))
     def test_unzips_multiple_zip_files(self):
         shutil.copy(os.path.join(self.a,"test_zip.zip"),os.path.join(self.a,"test_zip2.zip"))
-        rrr.unzip(self.a)
+        rrr.unzip(self.a,1)
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","rrr.py")))
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf")))
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir","rrr.py")))
@@ -37,7 +37,7 @@ class TestUnzip(unittest.TestCase):
         with zipfile.ZipFile(os.path.join(self.a,"test_zip2.zip"),'w') as zip:
             zip.write(os.path.join(self.a,"test_zip.zip"))
         os.remove(os.path.join(self.a,"test_zip.zip"))
-        rrr.unzip(self.a)
+        rrr.unzip(self.a,1)
         self.assertFalse(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir","test_zip.zip")))
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir",self.a,"test_zip.zip.dir","rrr.py")))
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir",self.a,"test_zip.zip.dir","blankpage.pdf")))
@@ -50,7 +50,7 @@ class TestAddDirectorySlipsheets(unittest.TestCase):
     def test_creates_a_slipsheet(self):
         a = "test_add_directory_slipsheets_test_directory"
         os.mkdir(a)
-        rrr.add_directory_slipsheets(a,0)
+        rrr.add_directory_slipsheets(a,1)
         self.assertTrue(os.path.isfile(os.path.join(a,"000 TAB ----- "+a+".pdf")))
         os.remove(os.path.join(a,"000 TAB ----- "+a+".pdf"))
         os.rmdir(a)
@@ -59,7 +59,7 @@ class TestAddDirectorySlipsheets(unittest.TestCase):
         os.mkdir(a)
         os.mkdir(os.path.join(a,a))
         os.mkdir(os.path.join(a,a,a))
-        rrr.add_directory_slipsheets(a,2)
+        rrr.add_directory_slipsheets(a,3)
         self.assertTrue(os.path.isfile(os.path.join(a,"000 TAB ----- "+a+".pdf")))
         self.assertTrue(os.path.isfile(os.path.join(a,a,"000 TAB ----- "+a+".pdf")))
         self.assertTrue(os.path.isfile(os.path.join(a,a,a,"000 TAB ----- "+a+".pdf")))
@@ -205,7 +205,7 @@ class TestProcessZips(unittest.TestCase):
     def tearDown(self):
         os.rmdir(self.a)
     def test_unzips_a_single_zip_file(self):
-        rrr.process_zips(self.a)
+        rrr.process_zips(self.a,1)
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","rrr.py")))
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf")))
         os.remove(os.path.join(self.a,"test_zip.zip.dir","rrr.py"))
@@ -213,7 +213,7 @@ class TestProcessZips(unittest.TestCase):
         os.rmdir(os.path.join(self.a,"test_zip.zip.dir"))
     def test_unzips_multiple_zip_files(self):
         shutil.copy(os.path.join(self.a,"test_zip.zip"),os.path.join(self.a,"test_zip2.zip"))
-        rrr.process_zips(self.a)
+        rrr.process_zips(self.a,1)
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","rrr.py")))
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip.zip.dir","blankpage.pdf")))
         self.assertTrue(os.path.isfile(os.path.join(self.a,"test_zip2.zip.dir","rrr.py")))
