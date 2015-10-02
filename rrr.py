@@ -45,13 +45,22 @@ def main (rootdir,tabdepth,page_setup_settings,email_formatting_status,numbering
     app.progress_bar.update()
     rename_resize_rotate(rootdir,numbering_status,slipsheets_status,tabdepth,max_pdf_size,max_excel_size)
     if flatten_status==1:
-        logging.info("Flattening directory structure...")
+        notify("Flattening directory structure...")
         flatten(rootdir)
-    logging.info("FINISHED!")
+    notify("FINISHED!",alt="")
     app.progress_bar["value"] = 100
     app.progress_bar.update()
     app.progress_text2["text"] = "Ready!"
     app.progress_text2.update()
+def notify(text,alt=False,level='i'):
+        if level=='i':
+            logging.info(text)
+        elif level=='w':
+            logging.warning(text)
+        else:
+            logging.debug(text)
+        app.progress_text3["text"] = alt or text
+        app.progress_text3.update()
 def flatten(rootdir):
     for subdir,dirs,files in os.walk(rootdir):
         for file in files:
@@ -101,12 +110,12 @@ def rename_resize_rotate(rootdir,numbering_status,slipsheets_status,tabdepth,max
         n+=1
         subdir,file = os.path.split(filename)
         if numbering_status==1:
-            logging.info ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)))
+            notify ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)),alt='RRRing {0}'.format('{0:05d} '.format(n)+file))
             os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
             if file[-4:].upper()==".PDF":
                 process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir,slipsheets_status,max_pdf_size,max_excel_size)
         else:
-            logging.info ("RRRing {0}".format(os.path.join(subdir,file)))
+            notify ("RRRing {0}".format(os.path.join(subdir,file)),alt='RRRing {0}'.format(file))
             if file[-4:].upper()==".PDF":
                 process_pdf(os.path.join(subdir,file),rootdir,slipsheets_status,max_pdf_size,max_excel_size)
         app.progress_bar["value"]=percentage
@@ -429,9 +438,9 @@ def convert_to_pdf(rootdir,page_setup_settings):
                 size_so_far+=os.path.getsize(os.path.join(subdir,file))
                 percentage = float(size_so_far)/float(total_size)*50
             try:
-                logging.info("Converting {0}".format(os.path.join(subdir,file)))
+                notify("Converting {0}".format(os.path.join(subdir,file)),alt='Converting {0}'.format(file))
             except:
-                logging.info("Converting <NAME CANNOT BE DISPLAYED>.")
+                notify("Converting <NAME CANNOT BE DISPLAYED>.")
             if os.path.join(subdir,file).upper() in files_to_remove:
                 pass
             elif file[-4:].upper()==".DOC" or file[-5:].upper()==".DOCX" or file[-4:].upper()==".TXT" or file[-4:].upper()==".RTF" or file[-5:].upper()==".HTML":
@@ -489,7 +498,7 @@ def process_pdf(filename,rootdir,slipsheets_status,max_pdf_size,max_excel_size):
         try:
             pdf = PdfFileReader(filename,strict=False)
             if pdf.isEncrypted:
-                logging.warning("ERROR: File encrypted - check PDF")
+                notify("ERROR: File encrypted - check PDF",level='w')
                 copy_to_root(filename,rootdir)
                 return
             pdf_dest = PdfFileWriter()
@@ -502,7 +511,7 @@ def process_pdf(filename,rootdir,slipsheets_status,max_pdf_size,max_excel_size):
             process_pdf_pages(pdf,pdf_dest,max_size)
             pdf_write(pdf_dest,filename,rootdir)
         except:
-            print("ERROR PROCESSING PDF")
+            notify("ERROR PROCESSING PDF",level='w')
             copy_to_root(filename,rootdir)
 def copy_to_root(filename,rootdir):
     trash,temp = os.path.split(filename)
@@ -548,7 +557,7 @@ def scale_to_letter(page,scale):
     try:
         page.scaleBy(scale)
     except:
-        logging.warning("ERROR: Could not scale - check PDF")
+        notify("ERROR: Could not scale - check PDF",level='w')
     a,b,c,d,x,y = get_page_dimensions(page)
     x_target,y_target = get_target_dimensions(page)
     a,b,c,d = adjust_page_dimensions(a,b,c,d,x,y,x_target,y_target)    
@@ -697,9 +706,9 @@ def extract_msg_message_plaintext(ole,subdir,file):
     msg_from,msg_to,msg_cc,msg_subject,msg_header,msg_body = extract_msg_message_data_plaintext(ole)
     fp = io.open(os.path.join(os.path.join(subdir,file)+".dir","00 {0}.txt".format(file)),"w")
     try:
-        fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('utf-8'))
+        fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\n".format(msg_from,msg_to,msg_cc,msg_subject).decode('utf-8'))
     except:
-        fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\nHeader: {4}\n".format(msg_from,msg_to,msg_cc,msg_subject,msg_header).decode('ISO-8859-1'))
+        fp.write("From: {0}\nTo: {1}\nCC: {2}\nSubject: {3}\n".format(msg_from,msg_to,msg_cc,msg_subject).decode('ISO-8859-1'))
     fp.write(unicode("---------------\n\n"))
     try:
         fp.write(msg_body.decode('utf-8'))
@@ -711,8 +720,18 @@ def extract_msg_message(ole,subdir,file):
     if msg_body=='' or msg_body==None:
         extract_msg_message_plaintext(ole,subdir,file)
         return
-    msg_body = extract_msg_unpack_rtf(msg_body)
-    msg_body = extract_msg_unpack_html(msg_body)
+    try:
+        msg_body = extract_msg_unpack_rtf(msg_body)
+    except:
+        notify('ERROR: FAILED TO UNPACK RTF MESSAGE FROM {0}. PROCESSING AS PLAINTEXT.'.format(os.path.join(subdir,file)),level='w')
+        extract_msg_message_plaintext(ole,subdir,file)
+        return
+    try:
+        msg_body = extract_msg_unpack_html(msg_body)
+    except:
+        notify('ERROR: FAILED TO UNPACK HTML MESSAGE FROM {0}. PROCESSING AS PLAINTEXT.'.format(os.path.join(subdir,file)),level='w')
+        extract_msg_message_plaintext(ole,subdir,file)
+        return
     if msg_body=='' or msg_body==None:
         extract_msg_message_plaintext(ole,subdir,file)
         return
@@ -1022,7 +1041,7 @@ def process_doc(rootdir,filename):
         doc.Close()
         os.remove(filename)
     except:
-        logging.info("FAILED TO PROCESS CORRUPT FILE")
+        notify("FAILED TO PROCESS CORRUPT FILE",level='w')
         copy_to_root(filename,rootdir)
     finally:
         word.Quit()
@@ -1040,7 +1059,7 @@ def process_xls(rootdir,filename,page_setup_settings):
         xls.Close(False)
         os.remove(filename)
     except:
-        logging.info("FAILED TO PROCESS CORRUPT FILE")
+        notify("FAILED TO PROCESS CORRUPT FILE",level='w')
         copy_to_root(filename,rootdir)
     finally:
         excel.Quit()
@@ -1052,7 +1071,7 @@ def process_ppt(filename,rootdir):
         ppt.Close()
         os.remove(filename)
     except:
-        logging.info("FAILED TO PROCESS CORRUPT FILE")
+        notify("FAILED TO PROCESS CORRUPT FILE",level='w')
         copy_to_root(filename,rootdir)
     finally:
         powerpoint.Quit()
@@ -1071,7 +1090,7 @@ def process_image(filename,rootdir):
         acrobat.CloseAllDocs()
         os.remove(filename)
     except:
-        logging.info("FAILED TO PROCESS CORRUPT FILE")
+        notify("FAILED TO PROCESS CORRUPT FILE",level='w')
         copy_to_root(filename,rootdir)
     finally:
         try:
@@ -1131,7 +1150,7 @@ def pdf_write(pdf_dest,filename,rootdir):
     try:
         pdf_dest.write(io.open(filename,mode='w+b'))
     except:
-        logging.warning ("ERROR: Could not write PDF - check PDF")
+        notify ("ERROR: Could not write PDF - check PDF",level='w')
         copy_to_root(filename,rootdir)
 def get_rotated_page_dimensions(page):
     a,b,c,d = page.mediaBox
@@ -1203,6 +1222,7 @@ class Application(Tkinter.Frame):
         self.create_progress_bar()
         self.create_progress_text()
         self.create_progress_text2()
+        self.create_progress_text3()
         self.create_flatten_checkbox()
         self.create_max_size_text()
         self.create_max_size_picker()
@@ -1211,96 +1231,106 @@ class Application(Tkinter.Frame):
     def create_max_size_text(self):
         self.max_size_text = Tkinter.Label(self)
         self.max_size_text["text"] = "Maximum PDF Pages:"
-        self.max_size_text.grid(row=3,column=0)
+        self.max_size_text.grid(row=3,column=1,sticky=Tkinter.E)
     def create_max_size_picker(self):
         self.max_size_picker = Tkinter.Spinbox(self,from_=0,to=100000)
         self.max_size_picker["value"] = 100000
-        self.max_size_picker.grid(row=3,column=1)
+        self.max_size_picker.grid(row=3,column=2,sticky=Tkinter.W)
     def create_max_excel_size_text(self):
         self.max_excel_size_text = Tkinter.Label(self)
         self.max_excel_size_text["text"] = "Maximum Excel Pages:"
-        self.max_excel_size_text.grid(row=4,column=0)
+        self.max_excel_size_text.grid(row=4,column=1,sticky=Tkinter.E)
     def create_max_excel_size_picker(self):
         self.max_excel_size_picker = Tkinter.Spinbox(self,from_=0,to=100000)
         self.max_excel_size_picker["value"] = 100000
-        self.max_excel_size_picker.grid(row=4,column=1)
+        self.max_excel_size_picker.grid(row=4,column=2,sticky=Tkinter.W)
     def create_flatten_checkbox(self):
         self.flatten_checkbox = Tkinter.Checkbutton(self)
         self.flatten_checkbox["text"] = "Flatten directory"
         self.flatten_checkbox_value = Tkinter.IntVar()
         self.flatten_checkbox["variable"] = self.flatten_checkbox_value
-        self.flatten_checkbox.grid(row=7,column=1)
+        self.flatten_checkbox.grid(row=7,column=2,sticky=Tkinter.W)
     def create_progress_text(self):
         self.progress_text = Tkinter.Label(self)
         self.progress_text["text"] = "0%"
-        self.progress_text.grid(row=10,column=0,columnspan=2)
+        self.progress_text.grid(row=10,column=0,columnspan=4)
     def create_progress_text2(self):
         self.progress_text2 = Tkinter.Label(self)
         self.progress_text2["text"] = "Ready!"
-        self.progress_text2.grid(row=11,column=0,columnspan=2)
+        self.progress_text2.grid(row=11,column=0,columnspan=4)
+    def create_progress_text3(self):
+        self.progress_text3 = Tkinter.Label(self)
+        self.progress_text3["text"] = ""
+        self.progress_text3.grid(row=12,column=0,columnspan=4)
     def create_progress_bar(self):
         self.progress_bar = ttk.Progressbar(self)
-        self.progress_bar["length"] = 250
+        self.progress_bar["length"] = 500
         self.progress_bar["value"] = 0
-        self.progress_bar.grid(row=9,column=0,columnspan=2,pady=4)
+        self.progress_bar.grid(row=9,column=0,columnspan=4,pady=4)
     def create_email_formatting_checkbox(self):
         self.email_formatting_checkbox = Tkinter.Checkbutton(self)
         self.email_formatting_checkbox["text"] = "Format emails (BETA)"
         self.email_formatting_checkbox_value = Tkinter.IntVar()
         self.email_formatting_checkbox["variable"] = self.email_formatting_checkbox_value
-        self.email_formatting_checkbox.grid(row=7,column=0)
+        self.email_formatting_checkbox.grid(row=7,column=1,sticky=Tkinter.E)
     def create_numbering_checkbox(self):
         self.numbering_checkbox = Tkinter.Checkbutton(self)
         self.numbering_checkbox["text"] = "Number files"
         self.numbering_checkbox_value = Tkinter.IntVar()
         self.numbering_checkbox["variable"] = self.numbering_checkbox_value
-        self.numbering_checkbox.grid(row=6,column=1)
+        self.numbering_checkbox.grid(row=6,column=2,sticky=Tkinter.W)
     def create_slipsheets_checkbox(self):
         self.slipsheets_checkbox = Tkinter.Checkbutton(self)
         self.slipsheets_checkbox["text"] = "Slipsheets"
         self.slipsheets_checkbox_value = Tkinter.IntVar()
         self.slipsheets_checkbox["variable"] = self.slipsheets_checkbox_value
-        self.slipsheets_checkbox.grid(row=6,column=0)
+        self.slipsheets_checkbox.grid(row=6,column=1,sticky=Tkinter.E)
     def create_page_setup_button(self):
         self.page_setup = Tkinter.Button(self)
         self.page_setup["text"] = "Excel Page Setup"
         self.page_setup["command"] = self.excel_page_setup
-        self.page_setup.grid(row=5,column=0)
+        self.page_setup.grid(row=5,column=1,sticky=Tkinter.E)
     def create_exit(self):
         self.exit = Tkinter.Button(self)
         self.exit["text"] = "Exit"
         self.exit["command"] = self.quit
-        self.exit.grid(row=8,column=1)
+        self.exit["background"] = "#FF0000"
+        self.exit["height"] = 3
+        self.exit["width"] = 6
+        self.exit.grid(row=8,column=2,sticky=Tkinter.W)
     def create_start(self):
         self.start_button = Tkinter.Button(self)
         self.start_button["text"] = "Start"
         self.start_button["command"] = self.start
-        self.start_button.grid(row=8,column=0)
+        self.start_button["background"]="#00FF00"
+        self.start_button["height"] = 3
+        self.start_button["width"] = 6
+        self.start_button.grid(row=8,column=1,sticky=Tkinter.E)
     def create_choose_source(self):
         self.choose_source = Tkinter.Button(self)
         self.choose_source["text"] = "Source Directory:"
         self.choose_source["command"] = self.source_directory_select
-        self.choose_source.grid(row=0,column=0)
+        self.choose_source.grid(row=0,column=1,sticky=Tkinter.E)
     def create_choose_dest(self):
         self.choose_dest = Tkinter.Button(self)
         self.choose_dest["text"] = "Destination Directory:"
         self.choose_dest["command"] = self.dest_directory_select
-        self.choose_dest.grid(row=1,column=0)
+        self.choose_dest.grid(row=1,column=1,sticky=Tkinter.E)
     def create_source_text(self):
         self.chosen_source = Tkinter.Label(self)
         self.chosen_source["text"] = self.source_directory
-        self.chosen_source.grid(row=0,column=1)
+        self.chosen_source.grid(row=0,column=2,sticky=Tkinter.W)
     def create_dest_text(self):
         self.chosen_dest = Tkinter.Label(self)
         self.chosen_dest["text"] = self.dest_directory
-        self.chosen_dest.grid(row=1,column=1)
+        self.chosen_dest.grid(row=1,column=2,sticky=Tkinter.W)
     def create_tab_depth_text(self):
         self.tab_depth_text = Tkinter.Label(self)
         self.tab_depth_text["text"] = "Tab Depth:"
-        self.tab_depth_text.grid(row=2,column=0)
+        self.tab_depth_text.grid(row=2,column=1,sticky=Tkinter.E)
     def create_tab_depth_picker(self):
         self.tab_depth_picker = Tkinter.Spinbox(self,from_=0,to=10000)
-        self.tab_depth_picker.grid(row=2,column=1)
+        self.tab_depth_picker.grid(row=2,column=2,sticky=Tkinter.W)
     def source_directory_select(self):
         self.source_directory = tkFileDialog.askdirectory(initialdir = "C:/", title = "Choose Source Directory", mustexist=True)
         self.chosen_source["text"] = self.source_directory
