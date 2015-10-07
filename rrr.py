@@ -105,6 +105,7 @@ def rename_resize_rotate(rootdir,numbering_status,slipsheets_status,tabdepth,max
     if tabdepth==0:
         n+=1
     for filename in customwalk(rootdir):
+        previous_percentage=app.progress_bar["value"]
         size_so_far+=os.path.getsize(filename)
         percentage = (float(size_so_far)/float(total_size)*50)+50
         n+=1
@@ -113,11 +114,11 @@ def rename_resize_rotate(rootdir,numbering_status,slipsheets_status,tabdepth,max
             notify ("RRRing {0}".format(os.path.join(subdir,"{0:05d} ".format(n) + file)),alt='RRRing {0}'.format('{0:05d} '.format(n)+file))
             os.rename(os.path.join(subdir,file),os.path.join(subdir,"{0:05d} ".format(n) + file))
             if file[-4:].upper()==".PDF":
-                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir,slipsheets_status,max_pdf_size,max_excel_size)
+                process_pdf(os.path.join(subdir,"{0:05d} ".format(n) + file),rootdir,slipsheets_status,max_pdf_size,max_excel_size,previous_percentage,percentage,start_time)
         else:
             notify ("RRRing {0}".format(os.path.join(subdir,file)),alt='RRRing {0}'.format(file))
             if file[-4:].upper()==".PDF":
-                process_pdf(os.path.join(subdir,file),rootdir,slipsheets_status,max_pdf_size,max_excel_size)
+                process_pdf(os.path.join(subdir,file),rootdir,slipsheets_status,max_pdf_size,max_excel_size,previous_percentage,percentage,start_time)
         app.progress_bar["value"]=percentage
         app.progress_bar.update()
         app.progress_text["text"]="{0}%".format(round(percentage,2))
@@ -494,25 +495,25 @@ def name_with_first_extension(name):
     # acrobat.CloseAllDocs()
     # acrobat.Exit()
     # os.remove(filename)
-def process_pdf(filename,rootdir,slipsheets_status,max_pdf_size,max_excel_size):
-        try:
-            pdf = PdfFileReader(filename,strict=False)
-            if pdf.isEncrypted:
-                notify("ERROR: File encrypted - check PDF",level='w')
-                copy_to_root(filename,rootdir)
-                return
-            pdf_dest = PdfFileWriter()
-            if slipsheets_status==1:
-                add_slipsheet(pdf_dest,filename)
-            if filename[-8:].upper()==".XLS.PDF" or filename[-9:].upper()==".XLSX.PDF":
-                max_size=max_excel_size
-            else:
-                max_size=max_pdf_size
-            process_pdf_pages(pdf,pdf_dest,max_size)
-            pdf_write(pdf_dest,filename,rootdir)
-        except:
-            notify("ERROR PROCESSING PDF",level='w')
+def process_pdf(filename,rootdir,slipsheets_status,max_pdf_size,max_excel_size,previous_percentage,percentage,start_time):
+    try:
+        pdf = PdfFileReader(filename,strict=False)
+        if pdf.isEncrypted:
+            notify("ERROR: File encrypted - check PDF",level='w')
             copy_to_root(filename,rootdir)
+            return
+        pdf_dest = PdfFileWriter()
+        if slipsheets_status==1:
+            add_slipsheet(pdf_dest,filename)
+        if filename[-8:].upper()==".XLS.PDF" or filename[-9:].upper()==".XLSX.PDF":
+            max_size=max_excel_size
+        else:
+            max_size=max_pdf_size
+        process_pdf_pages(pdf,pdf_dest,max_size,previous_percentage,percentage,start_time)
+        pdf_write(pdf_dest,filename,rootdir)
+    except:
+        notify("ERROR PROCESSING PDF",level='w')
+        copy_to_root(filename,rootdir)
 def copy_to_root(filename,rootdir):
     trash,temp = os.path.split(filename)
     if os.path.exists(os.path.join(rootdir,temp))==False:
@@ -1133,7 +1134,7 @@ def grab_line(text,length):
         build_line+=" "+text[0][0:diff]
         text[0]=text[0][diff:]
     return build_line
-def process_pdf_pages(pdf,pdf_dest,max_size):
+def process_pdf_pages(pdf,pdf_dest,max_size,previous_percentage,percentage,start_time):
     numPages = pdf.getNumPages()
     if numPages>max_size:
         numPages = max_size
@@ -1144,6 +1145,18 @@ def process_pdf_pages(pdf,pdf_dest,max_size):
         page = pdf.getPage(i)
         process_pdf_page(page)
         pdf_dest.addPage(page)
+        page_percentage = previous_percentage+((percentage-previous_percentage)*i/numPages)
+        app.progress_bar["value"]=page_percentage
+        app.progress_bar.update()
+        app.progress_text["text"]="{0}%".format(round(page_percentage,2))
+        app.progress_text.update()
+        seconds_elapsed = time.time()-start_time
+        task_percentage = (page_percentage-50)*2
+        if task_percentage == 0:
+            task_percentage = 0.01
+        time_remaining = (100-task_percentage)/task_percentage*seconds_elapsed
+        app.progress_text2["text"]="Processing PDFs. {0} remaining.".format(time_as_string(int(time_remaining)))
+        app.progress_text2.update()
     if truncate == True:
         add_slipsheet(pdf_dest,"Document truncated due to size - see original file.")
 def pdf_write(pdf_dest,filename,rootdir):
